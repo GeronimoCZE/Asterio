@@ -14,7 +14,7 @@ const fmt = (n, d = 0) => Number(n).toLocaleString('en-US', { minimumFractionDig
 const pad2 = (n) => String(n).padStart(2, '0');
 const store = {
   get(k, d) { try { const v = localStorage.getItem('asterio.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('asterio.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
+  set(k, v) { try { localStorage.setItem('asterio.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } if (/^(imagery|layer\.|class\.)/.test(k) && typeof prefsChanged === 'function') prefsChanged(); },
 };
 let route = 'explore'; // current page: explore | about | data | terms | cookies
 const IN_SANDBOX = /claude\.ai$|claudeusercontent\.com$|anthropic/.test(location.hostname) || location.search.includes('nolive');
@@ -163,7 +163,10 @@ try {
   fatal('Your browser could not start WebGL, which this 3D view needs. Try a current Chrome, Edge, Firefox or Safari with hardware acceleration turned on.');
   throw e;
 }
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Cap the drawing buffer at ~6.5 megapixels: on large high-DPI screens a full 2× buffer (plus depth
+// and antialiasing) costs hundreds of MB of GPU memory for little visible gain.
+function targetDpr() { return Math.max(1, Math.min(devicePixelRatio || 1, 2, Math.sqrt(6.5e6 / Math.max(1, innerWidth * innerHeight)))); }
+renderer.setPixelRatio(targetDpr());
 renderer.autoClear = false;
 renderer.setClearColor(0x04060b, 1);
 const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
@@ -177,9 +180,12 @@ const earthGroup = new THREE.Group(); scene.add(earthGroup);
 const sunLight = new THREE.DirectionalLight(0xffffff, 3.2); scene.add(sunLight); scene.add(sunLight.target);
 scene.add(new THREE.AmbientLight(0x8fa4c8, 0.35));
 const texLoader = new THREE.TextureLoader();
+// Once a texture has been uploaded to the GPU, drop the decoded image on the JS side: three.js only
+// reads it again if the texture is marked for update, which these never are. Halves texture memory.
+function releaseAfterUpload(t) { t.onUpdate = () => { t.onUpdate = null; const im = t.image; if (im && im.close) im.close(); if (im && im.tagName === 'CANVAS') { im.width = im.height = 1; } t.source.data = null; }; return t; }
 function loadTex(url, srgb = false) {
   return new Promise((res, rej) => texLoader.load(url, (t) => {
-    t.anisotropy = MAX_ANISO; if (srgb) t.colorSpace = THREE.SRGBColorSpace; res(t);
+    t.anisotropy = MAX_ANISO; if (srgb) t.colorSpace = THREE.SRGBColorSpace; releaseAfterUpload(t); res(t);
   }, undefined, () => rej(new Error('Could not load ' + url))));
 }
 const LOGV = `#include <common>\n#include <logdepthbuf_pars_vertex>\n`;
@@ -206,9 +212,10 @@ function releaseFollow() {
   cam.fly = { release: true, t: 0, dur: 0.9, fromT: cam.target.clone(), pos: p };
 }
 function camAltKm() { return (camera.position.length() - 1) * RE; }
+const _camOff = new THREE.Vector3();
 function applyCamera() {
   const ce = Math.cos(cam.el);
-  const off = new THREE.Vector3(ce * Math.sin(cam.az), Math.sin(cam.el), ce * Math.cos(cam.az)).multiplyScalar(cam.dist);
+  const off = _camOff.set(ce * Math.sin(cam.az), Math.sin(cam.el), ce * Math.cos(cam.az)).multiplyScalar(cam.dist);
   camera.position.copy(cam.target).add(off);
   const minR = 1 + 15 / RE; if (camera.position.length() < minR) camera.position.setLength(minR); // never inside the planet
   camera.up.set(0, 1, 0);
@@ -468,26 +475,28 @@ class TileNode {
   request(mode) {
     if (this.tex[mode] || this.loading[mode] || this.L > IMAGERY[mode].max) return;
     this.loading[mode] = true; tiles.inflight++;
-    loadTex(this.url(mode)).then((t) => { this.tex[mode] = t; t.generateMipmaps = true; tiles.lru.push(this); }).catch(() => { this.tex[mode] = 'fail'; })
+    loadTex(this.url(mode)).then((t) => { this.tex[mode] = t; t.generateMipmaps = true; this.seen = performance.now(); tiles.resident.add(this); }).catch(() => { this.tex[mode] = 'fail'; })
       .finally(() => { this.loading[mode] = false; tiles.inflight--; });
   }
   ready(mode) { return this.tex[mode] && this.tex[mode] !== 'fail'; }
   kids() { if (!this.children) this.children = [0, 1, 2, 3].map((k) => new TileNode(this.L + 1, this.x * 2 + (k & 1), this.y * 2 + (k >> 1))); return this.children; }
 }
-const tiles = { roots: [], inflight: 0, lru: [], visible: 0, level: 1 };
+const tiles = { roots: [], inflight: 0, resident: new Set(), visible: 0, level: 1 };
+const TILE_BUDGET = 40;      // resident detail textures (each ~5.6 MB on the GPU with mipmaps)
+const TILE_IDLE_MS = 15000;  // a tile unseen this long may be dropped once over budget
 for (let y = 0; y < 4; y++) for (let x = 0; x < 8; x++) tiles.roots.push(new TileNode(2, x, y));
-const _camLocal = new THREE.Vector3();
+const _camLocal = new THREE.Vector3(), _cdir = new THREE.Vector3();
 function updateTiles() {
   if (!globalTex.lights) return;
   _camLocal.copy(camera.position); earthGroup.worldToLocal(_camLocal);
-  const cd = _camLocal.length(), cdir = _camLocal.clone().normalize();
+  const cd = _camLocal.length(), cdir = _cdir.copy(_camLocal).normalize();
   const horizon = Math.acos(clamp(1 / cd, -1, 1));
-  const mode = imagery.mode, max = IMAGERY[mode].max; let vis = 0, deepest = 1;
+  const mode = imagery.mode, max = IMAGERY[mode].max, now = performance.now(); let vis = 0, deepest = 1;
   const hideAll = (n) => { if (n.mesh) n.mesh.visible = false; if (n.children) n.children.forEach(hideAll); };
   const show = (n) => {
     const m = n.ensureMesh(); const u = m.material.uniforms;
     u.day.value = n.tex[mode]; u.lights.value = globalTex.lights; u.water.value = globalTex.water; u.fill.value = globalTex.bm; u.isViirs.value = mode === 'viirs' ? 1 : 0;
-    m.visible = true; vis++; deepest = Math.max(deepest, n.L);
+    m.visible = true; vis++; deepest = Math.max(deepest, n.L); n.seen = now;
   };
   const walk = (n) => {
     const ang = Math.acos(clamp(n.center.dot(cdir), -1, 1));
@@ -507,12 +516,13 @@ function updateTiles() {
   };
   tiles.roots.forEach(walk);
   tiles.visible = vis; tiles.level = vis ? deepest : 1;
-  // evict old textures (keep ~90 resident)
-  if (tiles.lru.length > 90) {
-    const victim = tiles.lru.shift();
-    for (const k of Object.keys(victim.tex)) {
-      const t = victim.tex[k];
-      if (t && t !== 'fail' && !(victim.mesh && victim.mesh.visible && k === mode)) { t.dispose(); delete victim.tex[k]; }
+  // evict the least recently seen textures once over budget (never one on screen)
+  if (tiles.resident.size > TILE_BUDGET && (tiles.sweep = (tiles.sweep || 0) + 1) % 30 === 0) {
+    const idle = [...tiles.resident].filter((n) => !(n.mesh && n.mesh.visible) && now - n.seen > TILE_IDLE_MS).sort((a, b) => a.seen - b.seen);
+    for (const n of idle.slice(0, tiles.resident.size - TILE_BUDGET)) {
+      for (const k of Object.keys(n.tex)) { const t = n.tex[k]; if (t && t !== 'fail') t.dispose(); delete n.tex[k]; }
+      if (n.mesh) { earthGroup.remove(n.mesh); n.mesh.geometry.dispose(); n.mesh.material.dispose(); n.mesh = null; }
+      tiles.resident.delete(n);
     }
   }
 }
@@ -761,7 +771,7 @@ class SatEngine {
     g.setAttribute('position', this.posAttr); g.setAttribute('cls', new THREE.BufferAttribute(this.cls, 1));
     this.visAttr = new THREE.BufferAttribute(this.vis, 1); g.setAttribute('vis', this.visAttr);
     this.points = new THREE.Points(g, satMat); this.points.frustumCulled = false; this.points.renderOrder = 10; scene.add(this.points);
-    this.fullPropagate(simNow());
+    const ms = simNow(); this.fullPropagate(ms); this.place(ms); // positions are ready before the first frame (deep links fly straight to them)
   }
   propagateOne(i, ms, date) {
     const r = this.recs[i];
@@ -782,6 +792,11 @@ class SatEngine {
     const n = this.n; if (!n) return;
     const chunk = Math.ceil(n / (clock.rate > 100 ? 4 : 8)); const d = new Date(ms);
     for (let k = 0; k < chunk; k++) { this.propagateOne(this.cursor, ms, d); this.cursor = (this.cursor + 1) % n; }
+    this.place(ms);
+  }
+  // Advance every orbit from its last SGP4 fix with a cheap rotation, and write the render positions.
+  place(ms) {
+    const n = this.n; if (!n) return;
     const P = this.pos, A = this.alt, r0 = this.r0, c0 = this.c0;
     for (let i = 0; i < n; i++) {
       const o = i * 3; if (!this.ok[i]) { P[o] = P[o + 1] = P[o + 2] = 0; A[i] = -1; continue; }
@@ -869,7 +884,8 @@ function makeRec(name, l1, l2, c) {
   let satrec; try { satrec = satellite.twoline2satrec(l1, l2); } catch { return null; }
   if (!satrec || satrec.error) return null;
   const y = l1.slice(9, 11).trim(), cos = y ? `${+y < 57 ? '20' : '19'}${y}-${l1.slice(11, 14)}${l1.slice(14, 17).trim()}` : '—';
-  return { name: name.trim(), l1, l2, c, satrec, norad: +l1.slice(2, 7), cospar: cos, epoch: (satrec.jdsatepoch - 2440587.5) * 86400000 };
+  // Copy the name so it doesn't keep a reference into the multi-megabyte catalogue text.
+  return { name: Array.from(name.trim()).join(''), c, satrec, norad: +l1.slice(2, 7), cospar: cos, epoch: (satrec.jdsatepoch - 2440587.5) * 86400000 };
 }
 function orbitInfo(rec) {
   const s = rec.satrec, n = s.no / 60, a = Math.cbrt(MU / (n * n));
@@ -1032,9 +1048,10 @@ function label(text, s, cls, dx = 8, dy = 0) {
   if (el._c !== cls) { el.className = 'lab ' + cls; el._c = cls; }
   el.style.display = ''; el.style.transform = `translate(${s.x + dx - 4}px, ${s.y + dy - 7}px)`;
 }
+const _labS = { x: 0, y: 0 }, _labV = new THREE.Vector3();
 function drawLabels(alt) {
   labelUsed = 0; if (!layersOn.labels) { labelPool.forEach((l) => { l.style.display = 'none'; }); return; }
-  const s = { x: 0, y: 0 }; const v = new THREE.Vector3();
+  const s = _labS, v = _labV;
   if (project(moon.position, s) && !occluded(moon.position)) label('MOON', s, 'big', moonPixelRadius() + 8);
   if (sats && alt < 60000) for (const nor of [25544, 48274]) {
     const i = sats.byNorad.get(nor); if (i == null || !sats.ok[i] || sats.alpha[i] < 0.1) continue;
@@ -1098,7 +1115,7 @@ function buildLayerUI() {
   $('layers').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
     const k = b.dataset.k; layersOn[k] = !layersOn[k]; store.set('layer.' + k, layersOn[k]); b.setAttribute('aria-pressed', layersOn[k]);
   }));
-  $('imagery').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setImagery(b.dataset.img)));
+  $('imagery').querySelectorAll('button').forEach((b) => { b.onclick = () => setImagery(b.dataset.img); });
 }
 function syncTimeUI() {
   document.querySelectorAll('#rates button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.rate === clock.rate)));
@@ -1111,8 +1128,9 @@ syncTimeUI();
 
 /* detail panel */
 let detailTick = 0;
-function select(o, fly) {
+function select(o, fly, fromRoute) {
   selected = o; satMat.uniforms.sel.value = o && o.kind === 'sat' ? o.i : -1;
+  if (!fromRoute) syncUrlToSelection(o); else document.title = o ? objTitle(o) : TITLES.explore;
   buildOrbitPath();
   const el = $('detail');
   if (!o) { el.hidden = true; $('side').style.visibility = ''; releaseFollow(); return; }
@@ -1122,7 +1140,7 @@ function select(o, fly) {
   if (fly) focusOn(o);
 }
 function focusOn(o) {
-  const p = o.pos().clone();
+  const p = o.pos().clone(); if (p.lengthSq() < 0.5) return; // no valid position (e.g. a decayed orbit)
   if (o.kind === 'moon') { const a = angleFromDir(p.clone().negate().applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.5)); flyTo({ target: p, follow: o, dist: 1.4, az: a.az, el: a.el + 0.2 }); return; }
   const a = angleFromDir(p.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.35)); a.el = clamp(a.el + 0.25, -1.4, 1.4);
   const dist = o.kind === 'neo' ? Math.max(0.6, p.length() * 0.05) : clamp(p.length() * 0.09, 0.05, 0.9);
@@ -1141,10 +1159,11 @@ function renderDetail(full) {
       <h2>${esc(info.title)}</h2><div class="ids mono">${info.ids}</div>
       <dl class="mono" id="dRows"></dl>
       <div class="ids" id="dWhere"></div>
-      <div class="acts"><button id="dFollow" aria-pressed="${!!cam.follow}">Follow</button><button id="dFly">Fly to</button>${link}</div>
+      <div class="acts">${o.kind !== 'moon' ? `<button id="dSave" aria-pressed="${isSaved(o)}">${isSaved(o) ? '★ Saved' : '☆ Save'}</button>` : ''}<button id="dFollow" aria-pressed="${!!cam.follow}">Follow</button><button id="dFly">Fly to</button>${link}</div>
       <div class="note">${note}</div>`;
     $('dClose').onclick = () => select(null);
     $('dFly').onclick = () => focusOn(o);
+    if ($('dSave')) $('dSave').onclick = () => toggleSave(o);
     $('dFollow').onclick = () => { if (cam.follow || (cam.fly && cam.fly.follow)) releaseFollow(); else focusOn(o); };
   }
   $('dRows').innerHTML = info.rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
@@ -1346,7 +1365,7 @@ function focusName(alt) {
 
 /* ════════════════════════ DATA LOADING ════════════════════════ */
 async function getJSON(u) { const r = await fetch(u, { cache: 'no-cache' }); if (!r.ok) throw new Error(u + ' ' + r.status); return r.json(); }
-async function getText(u) { const r = await fetch(u, { cache: 'no-cache' }); if (!r.ok) throw new Error(u + ' ' + r.status); return r.text(); }
+async function getText(u, cache = 'no-cache') { const r = await fetch(u, { cache }); if (!r.ok) throw new Error(u + ' ' + r.status); return r.text(); }
 function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]); }
 let auroraTex = null;
 function setAuroraFromGrid(u8) { // u8: 181 rows × 360 cols, row 0 = 90°N
@@ -1364,7 +1383,7 @@ async function loadAll() {
     loadTex('tiles/viirs/1/0_0.jpg').then(() => { // build a global VIIRS base from the 8 L1 tiles
       const cnv = document.createElement('canvas'); cnv.width = 4096; cnv.height = 2048; const x = cnv.getContext('2d'); let n = 0;
       for (let ty = 0; ty < 2; ty++) for (let tx = 0; tx < 4; tx++) {
-        const im = new Image(); im.onload = () => { x.drawImage(im, tx * 1024, ty * 1024); if (++n === 8) { const t = new THREE.CanvasTexture(cnv); t.anisotropy = MAX_ANISO; globalTex.viirs = t; setImagery(imagery.mode); } };
+        const im = new Image(); im.onload = () => { x.drawImage(im, tx * 1024, ty * 1024); if (++n === 8) { const t = releaseAfterUpload(new THREE.CanvasTexture(cnv)); t.anisotropy = MAX_ANISO; globalTex.viirs = t; setImagery(imagery.mode); } };
         im.src = `tiles/viirs/1/${tx}_${ty}.jpg`;
       }
     }).catch(() => {});
@@ -1406,6 +1425,10 @@ async function loadAll() {
   bootSet('done', 'ok'); setTimeout(() => { $('boot').classList.add('gone'); setTimeout(() => { $('boot').hidden = true; }, 800); maybeNotice(); }, 300);
   if (route === 'about') renderAbout();
   started = true; goHome(2.6);
+  applyRouteObj(); // a /satellite/… or /asteroid/… address flies straight to that object
+  const q = new URLSearchParams(location.search).get('q');
+  if (q && route === 'explore') { qEl.value = q.slice(0, 60); doSearch(); }
+  if (route === 'satellites') renderCatalog();
   updateStatus();
   if (!IN_SANDBOX) setTimeout(tryLive, 1500);
 }
@@ -1426,14 +1449,22 @@ async function tryLive() {
   sourceState.via = viaServer ? 'Asterio server cache' : 'browser';
   try {
     const [act, ...deb] = await withTimeout(Promise.all(['active', 'fengyun-1c-debris', 'cosmos-2251-debris', 'iridium-33-debris', 'cosmos-1408-debris']
-      .map((g, i) => getText(CT + g).catch((e) => (i === 0 ? Promise.reject(e) : '')))), viaServer ? 60000 : 25000);
+      .map((g, i) => getText(CT + g, viaServer ? 'default' : 'no-cache').catch((e) => (i === 0 ? Promise.reject(e) : '')))), viaServer ? 60000 : 25000);
     const recs = parseRawTLE(act); const seen = new Set(recs.map((r) => r.norad));
     deb.forEach((t) => parseRawTLE(t, true).forEach((r) => { if (!seen.has(r.norad)) { seen.add(r.norad); recs.push(r); } }));
     if (recs.length > 5000) {
       const selNorad = selected && selected.kind === 'sat' ? selected.rec.norad : null;
-      select(null); setHover(null); sats.setRecords(recs);
+      setHover(null); sats.setRecords(recs);
       sourceState.tle = 'live'; sourceState.tleN = recs.length; sourceState.tleWhen = Date.now();
-      if (selNorad != null && sats.byNorad.has(selNorad)) select(satObj(sats.byNorad.get(selNorad)));
+      // Re-point the selection (and the camera, if it is following or flying to it) at the new record
+      // without moving the camera.
+      if (selNorad != null && sats.byNorad.has(selNorad)) {
+        const o = satObj(sats.byNorad.get(selNorad)); selected = o; satMat.uniforms.sel.value = o.i;
+        if (cam.follow && cam.follow.kind === 'sat') cam.follow = o;
+        if (cam.fly && cam.fly.follow && cam.fly.follow.kind === 'sat') cam.fly.follow = o;
+        buildOrbitPath(); renderDetail(true);
+      } else if (selected && selected.kind === 'sat') select(null, false, true);
+      if (route === 'satellites') renderCatalog();
       toast(`Orbital catalogue refreshed live from CelesTrak: ${fmt(recs.length)} objects.`);
     }
   } catch (e) { console.info('Live TLE refresh unavailable, using bundled snapshot.', e.message); }
@@ -1468,24 +1499,260 @@ function updateStatus() {
 }
 
 /* ════════════════════════ SITE: routes, pages, notice ════════════════════════ */
-const ROUTES = { explore: 'Asterio', about: 'About · Asterio', data: 'Data sources · Asterio', terms: 'Terms of Use · Asterio', cookies: 'Cookie Policy · Asterio' };
+// Served by server.js the site uses real URLs (/about, /satellite/25544-iss-zarya). Opened as a plain
+// file or embedded elsewhere it falls back to #hash routes. Internal links are written as /paths in
+// both cases and intercepted here.
+const PATH_MODE = !!document.querySelector('meta[name="asterio:server"]');
+const DOCS = ['about', 'sources', 'satellites', 'terms', 'privacy', 'cookies', '404'];
+const TITLES = {
+  explore: 'Asterio: Live 3D Satellite Tracker & Space Weather Map', about: 'About Asterio: How the Live Satellite Map Works',
+  sources: 'Data Sources · Asterio Live Satellite Map', satellites: 'Satellite Catalogue · Asterio', terms: 'Terms of Use · Asterio',
+  privacy: 'Privacy Policy · Asterio', cookies: 'Cookie Policy · Asterio', 404: 'Page not found · Asterio',
+};
+const slugify = (t) => String(t).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '');
+const satHref = (rec) => `/satellite/${rec.norad}${slugify(rec.name) ? '-' + slugify(rec.name) : ''}`;
+const neoHref = (d) => `/asteroid/${slugify(d.des)}`;
+function objHref(o) { return !o ? '/' : o.kind === 'sat' ? satHref(o.rec) : o.kind === 'neo' ? neoHref(o.d) : '/'; }
+function objTitle(o) { return o.kind === 'sat' ? `${o.rec.name} Live Position & Orbit Tracker · Asterio` : o.kind === 'neo' ? `Asteroid ${String(o.d.name || o.d.des).replace(/^\((.*)\)$/, '$1')} Close Approach · Asterio` : TITLES.explore; }
+function routeOf(p) {
+  p = p.replace(/\/+$/, '') || '/'; let m;
+  if (p === '/') return { name: 'explore' };
+  if ((m = /^\/(about|sources|satellites|terms|privacy|cookies)$/.exec(p))) return { name: m[1] };
+  if ((m = /^\/satellite\/(\d{1,6})/.exec(p))) return { name: 'explore', sat: +m[1] };
+  if ((m = /^\/asteroid\/([a-z0-9-]{3,40})/.exec(p))) return { name: 'explore', neo: m[1] };
+  return { name: PATH_MODE ? '404' : 'explore' };
+}
+function currentPath() {
+  if (PATH_MODE) return location.pathname;
+  const h = decodeURIComponent(location.hash.slice(1)); return h === 'data' ? '/sources' : h && h !== 'explore' ? '/' + h.replace(/^\//, '') : '/';
+}
+// Old #about style links still work on the server version.
+if (PATH_MODE && /^#(about|data|terms|cookies|explore)$/.test(location.hash)) history.replaceState(null, '', location.hash === '#data' ? '/sources' : location.hash === '#explore' ? '/' : '/' + location.hash.slice(1));
+let routeObj = null; // { sat } or { neo } waiting for the catalogue to load
+function navigate(href, replace) {
+  if (PATH_MODE) { if (href !== location.pathname) history[replace ? 'replaceState' : 'pushState'](null, '', href); setRoute(); return; }
+  const h = href === '/' ? '' : href.slice(1);
+  if (('#' + h) === location.hash || (!h && !location.hash)) { setRoute(); return; }
+  if (replace || !h) { history[replace ? 'replaceState' : 'pushState'](null, '', h ? '#' + h : location.pathname + location.search); setRoute(); } else location.hash = h;
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === '_blank' || a.hasAttribute('download')) return;
+  const href = a.getAttribute('href');
+  if (!href.startsWith('/') || href.startsWith('//') || /^\/(api|data|tiles|brand)\//.test(href) || /\.\w+$/.test(href)) return;
+  e.preventDefault(); navigate(href);
+});
+addEventListener('popstate', setRoute);
+addEventListener('hashchange', () => { if (!PATH_MODE) setRoute(); });
+
 function toggleMenu(open) { $('mobileMenu').hidden = !open; $('menuBtn').setAttribute('aria-expanded', String(open)); }
-$('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu($('mobileMenu').hidden); });
-addEventListener('click', (e) => { if (!$('mobileMenu').hidden && !e.target.closest('#mobileMenu')) toggleMenu(false); });
+$('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleAccount(false); toggleMenu($('mobileMenu').hidden); });
+addEventListener('click', (e) => {
+  if (!$('mobileMenu').hidden && !e.target.closest('#mobileMenu')) toggleMenu(false);
+  if (!$('accountPop').hidden && !e.target.closest('#accountPop, #accountBtn')) toggleAccount(false);
+});
 function setRoute() {
-  const h = location.hash.slice(1); const r = ROUTES[h] ? h : 'explore'; const prev = route; route = r;
-  for (const k of Object.keys(ROUTES)) if (k !== 'explore') { const pg = $('page-' + k); pg.hidden = k !== r; if (k === r && prev !== r) pg.scrollTop = 0; }
-  const ex = r === 'explore';
+  const r = routeOf(currentPath()); const prev = route; route = r.name;
+  for (const k of DOCS) { const pg = $('page-' + k); if (!pg) continue; pg.hidden = k !== route; if (k === route && prev !== route) pg.scrollTop = 0; }
+  const ex = route === 'explore';
   $('hud').hidden = !ex; $('labels').hidden = !ex; $('vfoot').hidden = !ex; $('search').hidden = !ex;
   $('boot').classList.toggle('away', !ex);
   if (!ex) { setHover(null); $('tip').hidden = true; }
-  document.querySelectorAll('[data-route]').forEach((a) => { if (a.dataset.route === r) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-  document.title = ROUTES[r]; toggleMenu(false);
-  if (r === 'data') renderSources();
-  if (r === 'about') renderAbout();
+  document.querySelectorAll('[data-route]').forEach((a) => { if (a.dataset.route === route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  toggleMenu(false); toggleAccount(false);
+  if (ex) {
+    routeObj = r.sat || r.neo ? r : null;
+    if (routeObj) applyRouteObj(); else if (selected && selected.kind !== 'moon' && prev === 'explore') select(null);
+  }
+  document.title = ex && selected && selected.kind !== 'moon' ? objTitle(selected) : TITLES[route];
+  if (route === 'sources') renderSources();
+  if (route === 'about') renderAbout();
+  if (route === 'satellites') renderCatalog();
 }
-addEventListener('hashchange', setRoute);
-document.querySelectorAll('.site-foot').forEach((f) => f.appendChild($('footTpl').content.cloneNode(true)));
+// Open the object named in the URL once the catalogue is in.
+function applyRouteObj() {
+  const r = routeObj; if (!r) return;
+  if (r.sat != null) {
+    if (!sats) return; const i = sats.byNorad.get(r.sat); routeObj = null;
+    if (i == null) { $('detail').hidden = true; toast('That satellite is not in the current catalogue.'); return; }
+    if (!(selected && selected.kind === 'sat' && selected.i === i)) select(satObj(i), true, true);
+  } else if (r.neo) {
+    if (!neos.length) return; const n = neos.find((x) => slugify(x.d.des) === r.neo); routeObj = null;
+    if (!n) { $('detail').hidden = true; toast('That asteroid is not in the current list.'); return; }
+    if (selected !== n) select(n, true, true);
+  }
+}
+// Keep the address bar on the selected object so it can be shared.
+function syncUrlToSelection(o) {
+  if (route !== 'explore') return;
+  document.title = o && o.kind !== 'moon' ? objTitle(o) : TITLES.explore;
+  if (!PATH_MODE) return;
+  const want = objHref(o); if (want === location.pathname) return;
+  history[location.pathname === '/' && want !== '/' ? 'pushState' : 'replaceState'](null, '', want + (want === '/' ? location.search : ''));
+}
+document.querySelectorAll('.site-foot').forEach((f) => { if (!f.children.length) f.appendChild($('footTpl').content.cloneNode(true)); });
+
+// Satellite catalogue page, grouped like the class panel. Built once per catalogue.
+let catalogHtml = null, catalogFor = null;
+function renderCatalog() {
+  const box = $('catalogList');
+  if (!sats) { if (!box.children.length) box.innerHTML = '<p class="cat-note">Loading the catalogue…</p>'; return; }
+  if (box.dataset.ssr && sourceState.tle !== 'live') return; // the server already sent the live list; keep it over the bundled snapshot
+  if (catalogFor !== sats.recs || !catalogHtml) {
+    const order = ['S', 'N', 'G', 'B', 'P', 'L', 'R', 'D'], groups = {};
+    sats.recs.forEach((r) => { (groups[CLASSES[r.c].key] ||= []).push(r); });
+    let h = '', jump = '';
+    for (const k of order) {
+      const g = groups[k]; if (!g || !g.length) continue; const c = CLASSES.find((x) => x.key === k);
+      jump += `<a href="#cat-${k}" data-jump="cat-${k}">${c.name}<span>${fmt(g.length)}</span></a>`;
+      h += `<section class="cat-group" id="cat-${k}"><h2>${esc(c.name)} <span>${fmt(g.length)}</span></h2>`;
+      if (k === 'L' || k === 'D' || k === 'R') h += `<p class="cat-note">${k === 'L' ? 'Starlink satellites are too many to list here. Search any of them by name or NORAD ID in the 3D view.' : 'Search any of these by name or NORAD ID in the 3D view.'}</p>`;
+      else h += `<ul class="cat-list">${g.slice().sort((a, b) => a.name.localeCompare(b.name, 'en', { numeric: true })).map((r) => `<li><a href="${satHref(r)}">${esc(r.name)}</a></li>`).join('')}</ul>`;
+      h += '</section>';
+    }
+    if (neos.length) {
+      jump += `<a href="#cat-asteroids" data-jump="cat-asteroids">Asteroids<span>${neos.length}</span></a>`;
+      h += `<section class="cat-group" id="cat-asteroids"><h2>Asteroids passing Earth <span>${neos.length}</span></h2><ul class="cat-list wide">${neos.slice().sort((a, b) => a.d.dist_au - b.d.dist_au).map((n) => `<li><a href="${neoHref(n.d)}">${esc(String(n.d.name || n.d.des).replace(/^\((.*)\)$/, '$1'))}</a> <small>${(n.d.dist_au * AU / LD).toFixed(2)} LD · ${esc(String(n.d.cd).slice(0, 11))}</small></li>`).join('')}</ul></section>`;
+    }
+    catalogHtml = [h, jump]; catalogFor = sats.recs;
+  }
+  box.innerHTML = catalogHtml[0]; $('catJump').innerHTML = catalogHtml[1]; delete box.dataset.ssr;
+}
+$('catJump').addEventListener('click', (e) => { const a = e.target.closest('a[data-jump]'); if (!a) return; e.preventDefault(); const t = $(a.dataset.jump); if (t) $('page-satellites').scrollTo({ top: t.offsetTop - 80, behavior: 'smooth' }); });
+
+/* ════════════════════════ ACCOUNT & WATCHLIST ════════════════════════ */
+// Guests keep saved objects in this browser. Signed in (Google), they live on the server and follow
+// the user across devices; local items are merged in at sign-in.
+const GOOGLE_ID = (document.querySelector('meta[name="asterio:google-client-id"]') || {}).content || '';
+const account = { user: null, watch: store.get('watchlist', []), ready: !PATH_MODE };
+async function api(path, opts = {}) {
+  const r = await fetch(path, { credentials: 'same-origin', ...opts, headers: { ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(body.error || `Request failed (${r.status})`), { status: r.status });
+  return body;
+}
+function watchKey(o) { return o.kind === 'sat' ? { kind: 'sat', id: o.rec.norad, name: o.rec.name } : o.kind === 'neo' ? { kind: 'neo', id: o.d.des, name: String(o.d.name || o.d.des).replace(/^\((.*)\)$/, '$1') } : null; }
+const isSaved = (o) => { const k = o && watchKey(o); return !!k && account.watch.some((w) => w.kind === k.kind && w.id === k.id); };
+let watchSaveT = null;
+function persistWatch() {
+  if (!account.user) { store.set('watchlist', account.watch); return; }
+  clearTimeout(watchSaveT);
+  watchSaveT = setTimeout(() => api('/api/me/watchlist', { method: 'PUT', body: JSON.stringify({ items: account.watch }) }).catch((e) => toast('Could not save your watchlist: ' + e.message)), 400);
+}
+function toggleSave(o) {
+  const k = watchKey(o); if (!k) return;
+  const i = account.watch.findIndex((w) => w.kind === k.kind && w.id === k.id);
+  if (i >= 0) account.watch.splice(i, 1); else account.watch.unshift(k);
+  persistWatch(); renderAccountButton(); if (!$('accountPop').hidden) renderAccountPop();
+  const b = $('dSave'); if (b) { b.setAttribute('aria-pressed', String(i < 0)); b.textContent = i < 0 ? '★ Saved' : '☆ Save'; }
+  if (i < 0 && !account.user && GOOGLE_ID && account.watch.length === 1) toast('Saved in this browser. Sign in to keep it on every device.');
+}
+function collectPrefs() {
+  const classes = {}; CLASSES.forEach((c, i) => { classes[c.key] = !!classOn[i]; }); classes.neo = !!neoOn;
+  return { imagery: imagery.mode, layers: { ...layersOn }, classes };
+}
+let prefsT = null, applyingPrefs = false;
+function prefsChanged() { if (!account.user || applyingPrefs) return; clearTimeout(prefsT); prefsT = setTimeout(() => api('/api/me/prefs', { method: 'PUT', body: JSON.stringify(collectPrefs()) }).catch(() => {}), 1200); }
+function applyPrefs(p) {
+  if (!p || !Object.keys(p).length) return;
+  applyingPrefs = true;
+  if (p.layers) for (const [k, v] of Object.entries(p.layers)) if (k in layersOn) { layersOn[k] = v; store.set('layer.' + k, v); }
+  if (p.classes) for (const [k, v] of Object.entries(p.classes)) { if (k === 'neo') neoOn = v; else { const i = CLASSES.findIndex((c) => c.key === k); if (i >= 0) { classOn[i] = v; store.set('class.' + k, v); } } }
+  buildClassUI(); buildLayerUI(); if (p.imagery) setImagery(p.imagery);
+  applyingPrefs = false;
+}
+function initials(n) { return String(n || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase(); }
+function renderAccountButton() {
+  const b = $('accountBtn'), img = $('avatarImg'), lab = $('accountLabel'); let ini = b.querySelector('.initial');
+  b.classList.toggle('user', !!account.user); b.classList.toggle('signin', !account.user && !!GOOGLE_ID);
+  if (account.user) {
+    b.setAttribute('aria-label', 'Your account and saved objects');
+    if (account.user.picture) { img.src = account.user.picture; img.hidden = false; if (ini) ini.remove(); }
+    else { img.hidden = true; if (!ini) { ini = document.createElement('span'); ini.className = 'initial'; b.appendChild(ini); } ini.textContent = initials(account.user.name); }
+  } else {
+    img.hidden = true; if (ini) ini.remove();
+    lab.textContent = GOOGLE_ID ? 'Sign in' : account.watch.length ? `Saved ${account.watch.length}` : 'Saved';
+    b.setAttribute('aria-label', GOOGLE_ID ? 'Sign in and saved objects' : 'Saved objects');
+  }
+}
+function savedListHtml() {
+  if (!account.watch.length) return '<div class="empty">Nothing saved yet. Open any satellite or asteroid and press Save.</div>';
+  return `<div class="saved">${account.watch.map((w, i) => `<button class="item" data-w="${i}">${w.kind === 'neo' ? swatch({ color: NEO_COLOR, shape: 'ring' }) : swatch(CLASSES[(sats && sats.byNorad.has(w.id)) ? sats.recs[sats.byNorad.get(w.id)].c : 5])}<span class="nm">${esc(w.name || w.id)}</span><small>${w.kind === 'neo' ? 'asteroid' : 'NORAD ' + w.id}</small></button>`).join('')}</div>`;
+}
+let confirmDelete = false;
+function renderAccountPop() {
+  const pop = $('accountPop'); const u = account.user;
+  if (u) {
+    pop.innerHTML = `<div class="who">${u.picture ? `<img src="${esc(u.picture)}" alt="" referrerpolicy="no-referrer">` : `<span class="initial">${esc(initials(u.name))}</span>`}<div><b>${esc(u.name)}</b><span>${esc(u.email || 'Signed in with Google')}</span></div></div>
+      <h3>Saved objects</h3>${savedListHtml()}
+      <div class="row3"><button id="aOut">Sign out</button><button id="aDel" class="danger">${confirmDelete ? 'Click again to delete everything' : 'Delete my data'}</button></div>`;
+    $('aOut').onclick = signOut;
+    $('aDel').onclick = () => { if (!confirmDelete) { confirmDelete = true; renderAccountPop(); return; } deleteAccount(); };
+  } else {
+    pop.innerHTML = `<h3>Saved objects</h3>${savedListHtml()}
+      ${GOOGLE_ID ? `<p>Sign in to keep saved objects and view settings on every device. We store only your name, email and watchlist.</p><div class="gbtn" id="gBtn"><span class="spin"></span></div><div class="err" id="gErr" hidden></div>`
+        : `<p>Saved in this browser only.</p>`}`;
+    if (GOOGLE_ID) renderGoogleButton($('gBtn')).catch((e) => { $('gBtn').hidden = true; const er = $('gErr'); er.hidden = false; er.textContent = e.message; });
+  }
+  pop.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => openSaved(account.watch[+b.dataset.w])));
+}
+function openSaved(w) {
+  toggleAccount(false);
+  if (w.kind === 'sat') { if (sats && sats.byNorad.has(w.id)) { if (route !== 'explore') navigate('/'); select(satObj(sats.byNorad.get(w.id)), true); } else toast(`${w.name || w.id} is not in the current catalogue.`); }
+  else { const n = neos.find((x) => x.d.des === w.id); if (n) { if (route !== 'explore') navigate('/'); select(n, true); } else toast(`${w.name || w.id} is no longer in the asteroid window.`); }
+}
+function toggleAccount(open) {
+  const pop = $('accountPop'); if (open === undefined) open = pop.hidden;
+  if (open) { confirmDelete = false; renderAccountPop(); toggleMenu(false); }
+  pop.hidden = !open; $('accountBtn').setAttribute('aria-expanded', String(open));
+}
+$('accountBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleAccount(); });
+
+let gisP = null, gisInit = false;
+function loadGis() {
+  return gisP ||= new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+    sc.onload = () => (window.google && google.accounts ? res(google) : rej(new Error('Google sign-in did not start.')));
+    sc.onerror = () => { gisP = null; rej(new Error('Google sign-in could not load. Check your connection or content blocker.')); };
+    document.head.appendChild(sc);
+  });
+}
+async function renderGoogleButton(el) {
+  const g = await loadGis();
+  if (!gisInit) { g.accounts.id.initialize({ client_id: GOOGLE_ID, callback: onGoogleCredential, ux_mode: 'popup', auto_select: false, itp_support: true, use_fedcm_for_button: true }); gisInit = true; }
+  el.innerHTML = ''; g.accounts.id.renderButton(el, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', logo_alignment: 'left', width: 280 });
+}
+async function onGoogleCredential(resp) {
+  try {
+    const r = await api('/api/auth/google', { method: 'POST', body: JSON.stringify({ credential: resp.credential }) });
+    const local = account.watch.slice(); account.user = r.user;
+    // merge anything saved while signed out
+    const merged = (r.watchlist || []).slice(); for (const w of local) if (!merged.some((m) => m.kind === w.kind && m.id === w.id)) merged.push(w);
+    account.watch = merged; if (local.length) { store.set('watchlist', []); persistWatch(); }
+    applyPrefs(r.prefs); if (!r.prefs || !Object.keys(r.prefs).length) prefsChanged();
+    renderAccountButton(); toggleAccount(false); toast(`Signed in as ${r.user.name}.`);
+    if (selected) renderDetail(true);
+  } catch (e) { const er = $('gErr'); if (er) { er.hidden = false; er.textContent = 'Sign-in failed: ' + e.message; } }
+}
+async function signOut() {
+  try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); } catch { /* cookie may already be gone */ }
+  if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  account.user = null; account.watch = store.get('watchlist', []); renderAccountButton(); toggleAccount(false); toast('Signed out.');
+  if (selected) renderDetail(true);
+}
+async function deleteAccount() {
+  try { await api('/api/me', { method: 'DELETE' }); account.user = null; account.watch = []; renderAccountButton(); toggleAccount(false); toast('Your account data has been deleted.'); if (selected) renderDetail(true); }
+  catch (e) { toast('Could not delete your data: ' + e.message); }
+}
+async function loadAccount() {
+  if (!PATH_MODE) { renderAccountButton(); return; }
+  try {
+    const r = await api('/api/me');
+    if (r.user) { account.user = r.user; account.watch = r.watchlist || []; applyPrefs(r.prefs); }
+  } catch { /* offline or API blocked: guest mode */ }
+  account.ready = true; renderAccountButton(); if (selected) renderDetail(true);
+}
+renderAccountButton();
 
 // About page: live counts and an altitude diagram drawn from the same data the 3D view uses
 function renderAbout() {
@@ -1512,6 +1779,18 @@ function renderAbout() {
   if (!isNaN(kp)) rows.push(['Geomagnetic Kp', `${kp.toFixed(1)}<small>${kp >= 5 ? 'storm' : kp >= 4 ? 'active' : 'quiet'}</small>`]);
   $('nowRows').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const d = new Date(ms); $('nowT').textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} UTC`;
+  // numbers quoted in the copy and FAQ (the server fills them too; this keeps them current)
+  const setStat = (k, v) => document.querySelectorAll(`[data-stat="${k}"]`).forEach((e) => { e.textContent = v; });
+  if (sats) {
+    const cnt = (key) => sats.counts[CLASSES.findIndex((c) => c.key === key)] || 0;
+    setStat('total', N(sats.n)); setStat('leo', N(leo)); setStat('debris', N(deb)); setStat('starlink', N(cnt('L'))); setStat('geo', N(cnt('G')));
+    setStat('payloads', N(sats.n - cnt('D') - cnt('R')));
+    const iss = sats.byNorad.get(25544); if (iss != null) { const oi = orbitInfo(sats.recs[iss]); setStat('issAlt', N((oi.apo + oi.peri) / 2)); setStat('issPeriod', oi.period.toFixed(1)); }
+  }
+  if (neos.length) {
+    const c0 = neos.reduce((a, b) => (b.d.dist_au < a.d.dist_au ? b : a));
+    setStat('neos', String(neos.length)); setStat('closestName', String(c0.d.name || c0.d.des).replace(/^\((.*)\)$/, '$1')); setStat('closestLd', (c0.d.dist_au * AU / LD).toFixed(2));
+  }
   $('altDiagram').innerHTML = altitudeSVG();
 }
 function altitudeSVG() {
@@ -1557,10 +1836,11 @@ canvas.addEventListener('pointerdown', () => { $('hint').style.opacity = '0'; },
 
 /* ════════════════════════ MAIN LOOP ════════════════════════ */
 function resize() {
-  const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
+  const w = innerWidth, h = innerHeight; renderer.setPixelRatio(targetDpr()); renderer.setSize(w, h, false);
   camera.aspect = skyCam.aspect = w / h; camera.fov = skyCam.fov = w < 700 ? 58 : 48;
   camera.userData.off = -1; camera.updateProjectionMatrix(); skyCam.updateProjectionMatrix();
-  const dpr = renderer.getPixelRatio(); satMat.uniforms.dpr.value = dpr;
+  const dpr = renderer.getPixelRatio();
+  for (const sc of [scene, skyScene]) sc.traverse((o) => { const u = o.material && o.material.uniforms; if (u && u.dpr) u.dpr.value = dpr; });
 }
 addEventListener('resize', resize); resize();
 
@@ -1720,5 +2000,6 @@ buildClassUI(); buildLayerUI();
 window.__asterio = { cam, flyTo, select, satObj: (i) => satObj(i), get sats() { return sats; }, neos, moonObj, setRate, jump, setHover, goHome, layersOn, moon, camera, belts, renderer, project: (v) => { const s = {}; return project(v, s) ? s : null; } };
 renderSources();
 setRoute();
+loadAccount();
 requestAnimationFrame(frame);
 loadAll().catch((e) => { console.error(e); fatal('Something went wrong while starting: ' + e.message); });

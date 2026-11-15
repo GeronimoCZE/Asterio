@@ -7,8 +7,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "LOG=1 node --watch server.js"
+    "dev": "LOG=1 node --watch server.js",
+    "test": "node test/auth-flow.test.mjs"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "UNLICENSED"
 }
