@@ -48,7 +48,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 /* ── nav ─────────────────────────── */
 .nav{position:fixed;left:0;right:0;top:0;z-index:20;height:calc(var(--nav-h) + var(--safe-t));padding:var(--safe-t) var(--gut-r) 0 var(--gut);display:flex;align-items:center;gap:28px;background:linear-gradient(to bottom, rgba(5,7,13,.86), rgba(5,7,13,.55));backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border-bottom:1px solid var(--line)}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:650;font-size:17px;letter-spacing:-.01em;flex:none}
-.logo svg{width:26px;height:26px}
+.logo img{display:block;height:17px;width:auto}
 .links{display:flex;gap:4px}
 .links a{text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:999px;font-size:14px;transition:color .15s, background .15s}
 .links a:hover{color:var(--text);background:rgba(255,255,255,.05)}
@@ -279,15 +279,79 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 .site-foot a:hover{color:var(--text)}
 .site-foot .fine{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:12.5px}
 
+/* ── account ─────────────────────────── */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.acct{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:999px;border:1px solid var(--line-2);font-size:13px;font-weight:500;color:var(--text);flex:none}
+.acct:hover{background:rgba(255,255,255,.06)}
+.acct svg{width:13px;height:13px;fill:currentColor;opacity:.8}
+.acct.signin{background:var(--text);color:var(--bg);border-color:var(--text)}
+.acct.signin svg{display:none}
+.acct.user{padding:0;width:34px;height:34px;justify-content:center;overflow:hidden}
+.acct.user svg,.acct.user span{display:none}
+.acct img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.acct .initial{display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:var(--accent-soft);color:#cfe5ff;font-weight:600}
+#accountPop{position:fixed;top:calc(var(--nav-h) + var(--safe-t) + 8px);right:var(--gut-r);z-index:22;width:min(340px, calc(100% - 32px));padding:16px;display:flex;flex-direction:column;gap:14px;background:var(--surface-2)}
+#accountPop .who{display:flex;gap:12px;align-items:center}
+#accountPop .who img,#accountPop .who .initial{width:40px;height:40px;border-radius:50%;flex:none}
+#accountPop .who .initial{display:flex;align-items:center;justify-content:center;background:var(--accent-soft);color:#cfe5ff;font-weight:600}
+#accountPop .who b{display:block;font-weight:600}
+#accountPop .who span{color:var(--muted);font-size:12.5px;word-break:break-all}
+#accountPop h3{margin:0;font-size:13px;font-weight:600}
+#accountPop p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+#accountPop .saved{display:flex;flex-direction:column;max-height:260px;overflow:auto;margin:0 -8px}
+#accountPop .saved button.item{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center;text-align:left;padding:8px;border-radius:9px;font-size:13.5px}
+#accountPop .saved button.item:hover{background:rgba(255,255,255,.06)}
+#accountPop .saved .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#accountPop .saved small{color:var(--faint);font-size:11.5px}
+#accountPop .empty{color:var(--faint);font-size:13px;padding:4px 0}
+#accountPop .row3{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+#accountPop .row3 button{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);font-size:12.5px}
+#accountPop .row3 button:hover{background:rgba(255,255,255,.06)}
+#accountPop .row3 .danger{color:#ff9aa9;border-color:rgba(255,79,109,.35)}
+#accountPop .gbtn{min-height:44px;display:flex;align-items:center}
+#accountPop .err{color:var(--crit);font-size:12.5px}
+
+/* ── catalogue, FAQ ──────────────────── */
+.cat-jump{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 28px}
+.cat-jump a{font-size:13px;text-decoration:none;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+.cat-jump a:hover{color:var(--text);border-color:var(--line-2)}
+.cat-jump a span{color:var(--faint);margin-left:6px;font-family:var(--f-mono);font-size:12px}
+.cat-group{padding:28px 0;border-top:1px solid var(--line)}
+.cat-group h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0 0 14px;display:flex;align-items:baseline;gap:10px}
+.cat-group h2 span{font-family:var(--f-mono);font-size:13px;color:var(--faint);font-weight:400}
+.cat-list{list-style:none;margin:0;padding:0;columns:4 200px;column-gap:28px;font-size:13.5px}
+.cat-list li{break-inside:avoid;padding:3px 0}
+.cat-list a{color:#c3ccd9;text-decoration:none}
+.cat-list a:hover{color:var(--accent);text-decoration:underline}
+.cat-list.wide{columns:2 320px}
+.cat-list small{color:var(--faint);font-family:var(--f-mono);font-size:11.5px;margin-left:6px}
+.cat-note{color:var(--muted);margin:0;font-size:14px}
+.faqs{display:flex;flex-direction:column;max-width:820px}
+.faq{border-top:1px solid var(--line)}
+.faq:last-child{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;list-style:none;padding:16px 36px 16px 0;font-size:16px;font-weight:500;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"";position:absolute;right:8px;top:22px;width:8px;height:8px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:rotate(45deg);transition:transform .2s}
+.faq[open] summary::after{transform:rotate(-135deg);top:26px}
+.faq div{padding:0 0 18px;color:#c3ccd9;font-size:15px;line-height:1.65;max-width:70ch}
+.faq a,.prose a,.credits a,.made a,.site-foot .fine a{color:var(--accent);text-decoration:none}
+.faq a:hover,.prose a:hover,.credits a:hover{text-decoration:underline}
+.made{margin:12px 0 0;font-size:13px;color:var(--muted)}
+.site-foot .made a,.site-foot .fine a{display:inline;padding:0}
+.vfoot .dot{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+.vfoot .credit{color:var(--muted)}
+
 /* ── loader, notice, toast ───────────── */
 #boot{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .7s ease;padding:0 var(--gut-r) 0 var(--gut)}
 #boot.gone{opacity:0;pointer-events:none}
 #boot.away{display:none}
 #boot .in{width:min(300px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
-#boot .orb{width:64px;height:64px;margin-bottom:22px}
+#boot .orb{width:72px;height:72px;margin-bottom:22px;position:relative}
+#boot .orb svg{position:absolute;inset:0;width:100%;height:100%}
+#boot .orb img{position:absolute;left:18px;top:18px;width:36px;height:36px}
 #boot .orb .sat{transform-origin:32px 32px;animation:orbit 2.4s linear infinite}
 @keyframes orbit{to{transform:rotate(360deg)}}
-#boot .nm{font-size:20px;font-weight:650;letter-spacing:-.01em}
+#boot .nm{height:20px;width:auto;display:block}
 #boot .bar{width:100%;height:3px;border-radius:999px;background:rgba(255,255,255,.08);margin:20px 0 10px;overflow:hidden}
 #boot .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .35s ease}
 #boot .txt{font-size:13px;color:var(--muted);min-height:20px}
@@ -301,6 +365,9 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 #toast{position:fixed;left:50%;top:calc(var(--nav-h) + var(--safe-t) + 60px);transform:translateX(-50%);z-index:9;padding:10px 16px;border-radius:999px;font-size:13px}
 
 /* ── responsive ─────────────────────── */
+@media (max-width:1280px){
+  .vfoot #dataTxt,.vfoot .dot{display:none}
+}
 @media (max-width:1180px){
   #search{width:240px}
   .links a{padding:7px 9px}
@@ -313,6 +380,8 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 @media (max-width:860px){
   :root{--nav-h:56px}
   .links,.status .clock,#search kbd{display:none}
+  .acct:not(.user){padding:0 10px}
+  .acct:not(.user):not(.signin) span{display:none}
   #menuBtn{display:flex}
   .nav{gap:12px}
   #search{position:fixed;top:calc(var(--nav-h) + var(--safe-t) + 10px);left:calc(var(--gut) + 54px);right:var(--gut-r);width:auto;z-index:19}
@@ -363,14 +432,12 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 </style>
 
 <header class="nav">
-  <a class="logo" href="#explore" aria-label="Asterio home">
-    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="7.5" fill="#5aa9ff"/><circle cx="16" cy="16" r="7.5" fill="url(#lg)"/><ellipse cx="16" cy="16" rx="14" ry="5.2" transform="rotate(-24 16 16)" stroke="#e9eef6" stroke-opacity=".55" stroke-width="1.3"/><circle cx="27.2" cy="11" r="2" fill="#e9eef6"/><defs><radialGradient id="lg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(13 13) scale(10)"><stop stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#0b2a55" stop-opacity=".7"/></radialGradient></defs></svg>
-    Asterio
-  </a>
+  <a class="logo" href="/" aria-label="Asterio home"><img src="brand/logo.svg" alt="Asterio" width="124" height="17"></a>
   <nav class="links" aria-label="Main">
-    <a href="#explore" data-route="explore">Explore</a>
-    <a href="#about" data-route="about">About</a>
-    <a href="#data" data-route="data">Data sources</a>
+    <a href="/" data-route="explore">Explore</a>
+    <a href="/satellites" data-route="satellites">Satellites</a>
+    <a href="/about" data-route="about">About</a>
+    <a href="/sources" data-route="sources">Data sources</a>
   </nav>
   <div class="spacer"></div>
   <div id="search" role="search">
@@ -380,19 +447,22 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
     <div id="results" class="card" role="listbox"></div>
   </div>
   <div class="status">
-    <a class="pill" id="dataPill" href="#data" title="Where the data comes from"><i></i><span id="dataChip">Loading</span></a>
+    <a class="pill" id="dataPill" href="/sources" title="Where the data comes from"><i></i><span id="dataChip">Loading</span></a>
     <span class="clock mono" id="clockT">--:--:-- UTC</span>
   </div>
+  <button id="accountBtn" class="acct" aria-haspopup="dialog" aria-expanded="false" aria-label="Saved objects"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.6l1.9 4 4.4.5-3.3 3 .9 4.3L8 11.2 4.1 13.4 5 9.1 1.7 6.1l4.4-.5z"/></svg><span id="accountLabel">Saved</span><img id="avatarImg" alt="" referrerpolicy="no-referrer" hidden></button>
   <button id="menuBtn" aria-label="Open menu" aria-expanded="false"><svg viewBox="0 0 20 20" fill="none" stroke-width="1.6"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button>
 </header>
+<div id="accountPop" class="card" hidden role="dialog" aria-label="Account and saved objects"></div>
 <div id="mobileMenu" class="card" hidden>
-  <a href="#explore">Explore</a><a href="#about">About</a><a href="#data">Data sources</a><hr><a href="#terms">Terms of Use</a><a href="#cookies">Cookie Policy</a>
+  <a href="/">Explore</a><a href="/satellites">Satellites</a><a href="/about">About</a><a href="/sources">Data sources</a><hr><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a>
 </div>
 
 <!-- ───────────── Explore ───────────── -->
 <canvas id="gl" aria-label="3D view of Earth and the objects orbiting it"></canvas>
 <div id="labels" aria-hidden="true"></div>
 <div class="hud" id="hud">
+  <h1 class="sr-only" id="pageH1">Live 3D satellite tracker: every satellite, piece of debris and near-Earth asteroid around Earth</h1>
   <div id="focus" class="card vtop"><span class="label">Focus</span><span class="v" id="focusV">—</span><span class="sep"></span><span class="n mono" id="focusN"></span></div>
   <div id="ladder" class="card vtop vbot" aria-label="Altitude ladder"><canvas id="ladderCanvas"></canvas><div id="ladderTip" class="card" hidden></div></div>
   <div id="tileChip" class="pill" hidden><span class="spin"></span>Loading sharper imagery</div>
@@ -456,8 +526,8 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   </nav>
 </div>
 <footer class="vfoot" id="vfoot">
-  <span>© 2026 Asterio</span><a href="#about">About</a><a href="#data">Data sources</a><a href="#terms">Terms</a><a href="#cookies">Cookies</a>
-  <span class="spacer"></span><span id="dataTxt">Orbital data from CelesTrak, NASA/JPL and NOAA</span>
+  <span>© 2026 Asterio</span><a href="/satellites">Satellites</a><a href="/about">About</a><a href="/sources">Data sources</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a>
+  <span class="spacer"></span><span id="dataTxt">Orbital data from CelesTrak, NASA/JPL and NOAA</span><span class="dot"></span><a class="credit" href="https://malikweb.eu" rel="author" target="_blank">Made by Nikolas Malík</a>
 </footer>
 
 <!-- ───────────── About ───────────── -->
@@ -468,7 +538,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
         <div class="eyebrow">About Asterio</div>
         <h1>A live map of the space around Earth</h1>
         <p>Asterio shows every tracked satellite and debris fragment, the Moon, asteroids passing nearby, and the layers of air and radiation they move through. Everything is drawn to scale and moves in real time in your browser.</p>
-        <div class="cta"><a class="btn primary" href="#explore">Open the 3D view</a><a class="btn" href="#data">See the data sources</a></div>
+        <div class="cta"><a class="btn primary" href="/">Open the 3D view</a><a class="btn" href="/satellites">Browse the catalogue</a></div>
       </div>
       <aside class="now" aria-label="Current numbers">
         <div class="now-h"><span><i></i>Right now</span><span class="mono" id="nowT">—</span></div>
@@ -496,7 +566,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
       <h2>How it works</h2>
       <p class="lede">Nothing is pre-rendered. The page downloads published orbital data once, then computes every position itself.</p>
       <div class="steps">
-        <div class="tile"><h3>Load the catalogue</h3><p>About 18,500 two-line element sets, each describing one orbit at a moment in time.</p></div>
+        <div class="tile"><h3>Load the catalogue</h3><p><span data-stat="total">18,534</span> two-line element sets, each describing one orbit at a moment in time.</p></div>
         <div class="tile"><h3>Propagate</h3><p>The SGP4 model moves each object to the current second. Your browser does this thousands of times per second.</p></div>
         <div class="tile"><h3>Place the Moon and asteroids</h3><p>JPL Horizons vectors are interpolated to the current time, with the Sun direction for lighting.</p></div>
         <div class="tile"><h3>Stream the Earth</h3><p>NASA imagery loads in tiles as you zoom, from a 4,096 px globe up to 16,384 px (about 2.4 km per pixel).</p></div>
@@ -505,7 +575,22 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 
     <section class="sect">
       <h2>Live, snapshot or model</h2>
-      <p class="lede">Satellite motion is always computed live. The orbital data itself was downloaded on 15 November 2026 at 02:20 UTC. Element sets stay accurate to a few kilometres for several days, then drift. When Asterio is opened from its own web address it refreshes the catalogue from CelesTrak and space weather from NOAA automatically. Inside claude.ai the page cannot reach outside sources, so it uses the bundled snapshot. The Data sources page lists the state of every layer.</p>
+      <p class="lede">Satellite motion is always computed live. The orbital data itself was downloaded on 15 November 2026 at 02:20 UTC. Element sets stay accurate to a few kilometres for several days, then drift, so the Asterio server refreshes the catalogue from CelesTrak every two hours and space weather from NOAA every five minutes. If those sources cannot be reached, Asterio falls back to a bundled snapshot and says so in the status pill. The Data sources page lists the state of every layer.</p>
+    </section>
+
+    <section class="sect" id="faq">
+      <h2>Frequently asked questions</h2>
+      <p class="lede">Short answers, with the numbers Asterio sees right now.</p>
+      <div class="faqs">
+        <details class="faq"><summary>How many satellites are orbiting Earth right now?</summary><div>Asterio currently tracks <span data-stat="total">18,534</span> objects from the public CelesTrak catalogue. <span data-stat="payloads">15,853</span> are satellites, <span data-stat="starlink">10,608</span> of them Starlink, and <span data-stat="debris">2,681</span> are catalogued debris fragments. <span data-stat="leo">17,728</span> objects are in low Earth orbit, below 2,000 km.</div></details>
+        <details class="faq"><summary>Where is the International Space Station now?</summary><div>The ISS flies about <span data-stat="issAlt">426</span> km above Earth and circles the planet every <span data-stat="issPeriod">92.9</span> minutes at about 7.66 km/s, so it moves roughly 460 km every minute. Its live position is on the <a href="/satellite/25544-iss-zarya">ISS page</a>.</div></details>
+        <details class="faq"><summary>How accurate are the positions?</summary><div>Positions are computed with the SGP4 model from published two-line element sets. They are typically within about 1 km when the elements are fresh and drift by a few kilometres per day after that. Good enough to see where things are, not for navigation or collision avoidance.</div></details>
+        <details class="faq"><summary>Which asteroid comes closest to Earth in this window?</summary><div><span data-stat="closestName">2026 VU15</span> passes at <span data-stat="closestLd">0.19</span> lunar distances on <span data-stat="closestDate">12 November 2026</span>. Asterio shows all <span data-stat="neos">41</span> known asteroids passing within 7.5 million km between 12 November 2026 and 15 January 2027.</div></details>
+        <details class="faq"><summary>Where does space begin?</summary><div>By the most common convention, at the Kármán line, 100 km above sea level. The ISS and most satellites orbit in the thermosphere, between about 85 and 600 km, where the air is thin enough for orbits to last years.</div></details>
+        <details class="faq"><summary>What is geostationary orbit?</summary><div>A circular orbit 35,786 km above the equator. A satellite there takes exactly one sidereal day to go around, so it stays over the same spot on Earth. Asterio tracks <span data-stat="geo">537</span> objects in or near that belt, mostly communications and weather satellites.</div></details>
+        <details class="faq"><summary>What are the Van Allen belts?</summary><div>Two zones of charged particles trapped by Earth's magnetic field: an inner belt of energetic protons peaking near 3,000 km and an outer belt of electrons from about 13,000 to 60,000 km. The outer belt swells and drains with geomagnetic storms.</div></details>
+        <details class="faq"><summary>Is Asterio free? Do I need an account?</summary><div>Asterio is free and needs no account. You can optionally sign in with Google to keep a watchlist of saved satellites and asteroids across devices.</div></details>
+      </div>
     </section>
 
     <section class="sect">
@@ -519,14 +604,29 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
         <div><span>Stars, Milky Way outline</span><span>d3-celestial (Hipparcos)</span></div>
         <div><span>3D engine</span><span>three.js (MIT)</span></div>
         <div><span>Orbit propagation</span><span>satellite.js (MIT)</span></div>
+        <div><span>Design and development</span><span><a href="https://malikweb.eu" rel="author" target="_blank">Nikolas Malík</a></span></div>
       </div>
     </section>
     <footer class="site-foot"></footer>
   </div>
 </main>
 
+<!-- ───────────── Satellite catalogue ───────────── -->
+<main id="page-satellites" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero">
+      <div class="eyebrow">Satellite catalogue</div>
+      <h1>Every satellite Asterio tracks</h1>
+      <p>Open any satellite or asteroid to see where it is right now, its orbit and its path in 3D. The catalogue comes from CelesTrak and refreshes every two hours. Updated <span data-stat="updated">15 November 2026, 02:20 UTC</span>.</p>
+    </section>
+    <nav class="cat-jump" id="catJump" aria-label="Jump to a group"></nav>
+    <div id="catalogList"></div>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
 <!-- ───────────── Data sources ───────────── -->
-<main id="page-data" class="page-doc" hidden>
+<main id="page-sources" class="page-doc" hidden>
   <div class="wrap">
     <section class="doc-hero">
       <div class="eyebrow">Data sources</div>
@@ -543,29 +643,65 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Terms of Use</h1><p class="updated">Last updated 15 November 2026</p></section>
     <article class="prose">
-      <p>These terms apply when you use Asterio, the website and 3D viewer that shows objects in orbit around Earth. By using Asterio you agree to them. If you do not agree, please do not use the site.</p>
+      <p>These terms apply when you use Asterio, the website and 3D viewer that shows objects in orbit around Earth, created and run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>). By using Asterio you agree to them. If you do not agree, please do not use the site.</p>
       <h2>1. What Asterio is</h2>
-      <p>Asterio is an educational visualisation. It downloads publicly available orbital, astronomical and space-weather data and draws it in your browser. It does not collect accounts, payments or personal information.</p>
+      <p>Asterio is a free educational visualisation. It downloads publicly available orbital, astronomical and space-weather data and draws it in your browser. You can use it without an account.</p>
       <h2>2. For information only</h2>
       <p>Positions shown in Asterio are estimates. Satellite positions can be off by several kilometres, and more as the underlying data ages. Do not use Asterio for navigation, collision avoidance, launch or spacecraft operations, radio scheduling, or any decision where safety, property or money depends on precise positions. Use the original data providers for those purposes.</p>
-      <h2>3. Third-party data</h2>
-      <p>The data belongs to, or is published by, the organisations credited on the Data sources page, including CelesTrak, NASA, NOAA and Natural Earth. Their own terms and credit requirements continue to apply. Asterio is not affiliated with or endorsed by any of them.</p>
-      <h2>4. Acceptable use</h2>
+      <h2>3. Optional accounts</h2>
+      <p>You can sign in with your Google account to save a watchlist and your view settings. Signing in is optional. You can delete your account data at any time from the account menu, which removes it from our server. We may suspend accounts that abuse the service. The <a href="/privacy">Privacy Policy</a> explains what we store.</p>
+      <h2>4. Third-party data</h2>
+      <p>The data belongs to, or is published by, the organisations credited on the <a href="/sources">Data sources</a> page, including CelesTrak, NASA, NOAA and Natural Earth. Their own terms and credit requirements continue to apply. Asterio is not affiliated with or endorsed by any of them.</p>
+      <h2>5. Acceptable use</h2>
       <ul>
-        <li>Do not use Asterio, or automated tools pointed at it, to send excessive requests to the data providers it connects to.</li>
-        <li>Do not attempt to disrupt the site or the services that host it.</li>
+        <li>Do not send automated requests at a rate that degrades the service. Asterio limits requests per visitor and may block clients that ignore those limits.</li>
+        <li>Do not use the Asterio API from other websites or apps without permission. It is meant for this site.</li>
+        <li>Do not attempt to disrupt the site, access other people's accounts, or get around its security.</li>
         <li>Do not present screenshots or recordings in a way that suggests they show official or exact positions.</li>
       </ul>
-      <h2>5. No warranty</h2>
+      <h2>6. No warranty</h2>
       <p>Asterio is provided as is and as available, without warranties of any kind, express or implied, including accuracy, availability, fitness for a particular purpose and non-infringement. Data may be delayed, incomplete or wrong.</p>
-      <h2>6. Limitation of liability</h2>
-      <p>To the fullest extent the law allows, the people who run Asterio are not liable for any indirect, incidental or consequential loss, or for any loss arising from reliance on the information shown.</p>
-      <h2>7. Open-source components</h2>
+      <h2>7. Limitation of liability</h2>
+      <p>To the fullest extent the law allows, the operator of Asterio is not liable for any indirect, incidental or consequential loss, or for any loss arising from reliance on the information shown. Nothing in these terms limits rights you have as a consumer that cannot be limited by law.</p>
+      <h2>8. Open-source components</h2>
       <p>Asterio uses open-source software including three.js and satellite.js under the MIT licence, and the Geist typeface under the SIL Open Font License. Those licences govern those components.</p>
-      <h2>8. Changes</h2>
+      <h2>9. Changes</h2>
       <p>These terms may change as the site changes. The date at the top shows the latest version. Continuing to use Asterio after a change means you accept the updated terms.</p>
-      <h2>9. Contact</h2>
-      <p>Questions about these terms can be sent to the person or organisation that shared Asterio with you.</p>
+      <h2>10. Contact</h2>
+      <p>Questions about these terms can be sent to Nikolas Malík through <a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>.</p>
+    </article>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<!-- ───────────── Privacy ───────────── -->
+<main id="page-privacy" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Privacy Policy</h1><p class="updated">Last updated 15 November 2026</p></section>
+    <article class="prose">
+      <p>Asterio is run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>), who is responsible for the personal data described here. You can use Asterio without giving us any personal data. This policy explains what happens if you sign in, and what every visit involves.</p>
+      <h2>If you just browse</h2>
+      <ul>
+        <li>We do not use analytics, advertising or tracking of any kind.</li>
+        <li>Your view settings and any objects you save are kept in your own browser (local storage) and never sent to us.</li>
+        <li>Our server sees your IP address with each request, as every web server does. We use it in memory to limit request rates and protect the service. We do not store it or link it to you.</li>
+      </ul>
+      <h2>If you sign in with Google</h2>
+      <p>When you choose to sign in, Google confirms who you are and sends us a signed token. From it we keep:</p>
+      <ul>
+        <li>your Google account ID, name, email address (only if Google has verified it) and the address of your profile picture</li>
+        <li>the satellites and asteroids you save to your watchlist, and your view settings</li>
+        <li>when you created your account and last signed in</li>
+      </ul>
+      <p>We use this only to sign you in and to sync your watchlist and settings between devices. We do not receive your Google password or access to your Google account, and we never sell or share your data. The legal basis is performing the service you asked for (Article 6(1)(b) GDPR).</p>
+      <h2>How long we keep it</h2>
+      <p>Until you delete it. Choose <b>Delete my data</b> in the account menu and your account record is removed from our server immediately. Accounts unused for 24 months are deleted.</p>
+      <h2>Where it is stored</h2>
+      <p>On the server that runs Asterio. Sign-in is provided by Google Ireland Limited under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</p>
+      <h2>Your rights</h2>
+      <p>You can ask to see, correct, export or delete your data, and you can object to how it is used. Most of this you can do yourself from the account menu; for anything else, contact Nikolas Malík through <a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>. You also have the right to complain to your data protection authority.</p>
+      <h2>Changes</h2>
+      <p>If this policy changes, the date at the top will change. Significant changes will be announced on the site before they take effect.</p>
     </article>
     <footer class="site-foot"></footer>
   </div>
@@ -576,39 +712,53 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Cookie Policy</h1><p class="updated">Last updated 15 November 2026</p></section>
     <article class="prose">
-      <p><strong>Asterio does not set any cookies.</strong> It has no analytics, advertising or tracking scripts, and it does not ask you to sign in.</p>
-      <h2>What Asterio stores on your device</h2>
-      <p>To remember how you like the view, Asterio saves a few small settings in your browser's local storage. They never leave your device and are not readable by other websites.</p>
+      <p><strong>Asterio uses no tracking, analytics or advertising cookies.</strong> It sets one cookie, and only if you sign in.</p>
+      <h2>The one cookie</h2>
       <ul>
-        <li><code>asterio.imagery</code> — which Earth imagery you picked</li>
-        <li><code>asterio.layer.*</code> — which layers are switched on</li>
-        <li><code>asterio.class.*</code> — which object classes are shown</li>
+        <li><code>asterio_session</code> keeps you signed in. It is set when you sign in with Google, lasts 30 days, cannot be read by scripts, and is removed when you sign out. It is strictly necessary for the sign-in you asked for, so it does not need separate consent.</li>
+      </ul>
+      <h2>What Asterio stores in your browser</h2>
+      <p>To remember how you like the view, Asterio saves a few small settings in your browser's local storage. They are not cookies, never leave your device, and are not readable by other websites.</p>
+      <ul>
+        <li><code>asterio.imagery</code>, <code>asterio.layer.*</code>, <code>asterio.class.*</code> — your view settings</li>
+        <li><code>asterio.watchlist</code> — objects you saved while signed out</li>
         <li><code>asterio.notice</code> — that you dismissed the storage notice</li>
       </ul>
-      <p>You can remove them at any time by clearing site data for this page in your browser settings. Asterio works the same without them; it just forgets your choices.</p>
+      <p>You can remove them at any time by clearing site data for Asterio in your browser settings. Asterio works the same without them; it just forgets your choices.</p>
       <h2>Requests to other services</h2>
       <p>Loading the page contacts a few services. Like any web request, these receive your IP address and basic browser information, under their own privacy policies:</p>
       <ul>
         <li>Google Fonts (<code>fonts.googleapis.com</code>, <code>fonts.gstatic.com</code>) for the typeface</li>
         <li>jsDelivr (<code>cdn.jsdelivr.net</code>) for the three.js and satellite.js libraries</li>
-        <li>When opened from its own web address: CelesTrak (<code>celestrak.org</code>) and NOAA SWPC (<code>services.swpc.noaa.gov</code>) for fresh data</li>
+        <li>Google Identity Services (<code>accounts.google.com</code>), only when you open the sign-in menu. Google may set its own cookies there, under <a href="https://policies.google.com/technologies/cookies" target="_blank" rel="noopener">Google's cookie policy</a>.</li>
       </ul>
-      <h2>The page that hosts Asterio</h2>
-      <p>If you open Asterio inside claude.ai, that platform's own cookie and privacy policies apply to the surrounding page. This policy covers only Asterio itself.</p>
       <h2>Changes</h2>
-      <p>If Asterio ever starts using cookies or analytics, this page will say so before it happens.</p>
+      <p>If Asterio ever starts using other cookies or analytics, this page will say so, and you will be asked first where the law requires it.</p>
     </article>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<!-- ───────────── 404 ───────────── -->
+<main id="page-404" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero">
+      <div class="eyebrow">Error 404</div>
+      <h1>This page drifted out of orbit</h1>
+      <p>The address may be mistyped, or the object it pointed to has re-entered the atmosphere and left the catalogue.</p>
+      <div class="cta"><a class="btn primary" href="/">Back to the 3D view</a><a class="btn" href="/satellites">Browse the catalogue</a></div>
+    </section>
     <footer class="site-foot"></footer>
   </div>
 </main>
 
 <template id="footTpl">
   <div class="fgrid">
-    <div><a class="logo" href="#explore" style="padding:0;color:var(--text)">Asterio</a><p style="margin:10px 0 0;max-width:40ch">A live 3D map of satellites, debris, asteroids and the layers around Earth.</p></div>
-    <div><h4>Explore</h4><a href="#explore">3D view</a><a href="#about">About</a><a href="#data">Data sources</a></div>
-    <div><h4>Legal</h4><a href="#terms">Terms of Use</a><a href="#cookies">Cookie Policy</a></div>
+    <div><a class="logo" href="/" aria-label="Asterio home"><img src="brand/logo.svg" alt="Asterio" width="117" height="16"></a><p style="margin:10px 0 0;max-width:40ch">A live 3D map of satellites, debris, asteroids and the layers around Earth.</p><p class="made">Designed and built by <a href="https://malikweb.eu" rel="author" target="_blank">Nikolas Malík</a></p></div>
+    <div><h4>Explore</h4><a href="/">3D view</a><a href="/satellites">Satellite catalogue</a><a href="/about">About &amp; FAQ</a><a href="/sources">Data sources</a></div>
+    <div><h4>Legal</h4><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div>
   </div>
-  <div class="fine"><span>© 2026 Asterio. Not affiliated with NASA, NOAA or CelesTrak.</span><span>Orbital data: CelesTrak · Ephemerides: NASA JPL · Space weather: NOAA SWPC · Imagery: NASA GIBS</span></div>
+  <div class="fine"><span>© 2026 Asterio by <a href="https://malikweb.eu" rel="author" target="_blank">malikweb.eu</a>. Not affiliated with NASA, NOAA or CelesTrak.</span><span>Orbital data: CelesTrak · Ephemerides: NASA JPL · Space weather: NOAA SWPC · Imagery: NASA GIBS</span></div>
 </template>
 
 <div id="tip" hidden>
@@ -617,19 +767,17 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 </div>
 <div id="toast" class="card" hidden></div>
 <div id="notice" class="card" hidden role="dialog" aria-label="Storage notice">
-  <div><b>No cookies here.</b> Asterio only keeps your view settings in this browser so they stick between visits.</div>
-  <div class="row2"><a href="#cookies">Read the policy</a><button class="ok" id="noticeOk">Got it</button></div>
+  <div><b>No tracking here.</b> Asterio keeps your view settings in this browser, and sets a cookie only if you sign in.</div>
+  <div class="row2"><a href="/cookies">Read the policy</a><button class="ok" id="noticeOk">Got it</button></div>
 </div>
 
 <div id="boot">
   <div class="in">
-    <svg class="orb" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <circle cx="32" cy="32" r="14" fill="#5aa9ff" opacity=".9"/><circle cx="32" cy="32" r="14" fill="url(#bg)"/>
-      <circle cx="32" cy="32" r="26" stroke="#e9eef6" stroke-opacity=".14" stroke-width="1.2"/>
-      <g class="sat"><circle cx="32" cy="6" r="3" fill="#e9eef6"/></g>
-      <defs><radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(27 26) scale(18)"><stop stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#06213f" stop-opacity=".8"/></radialGradient></defs>
-    </svg>
-    <div class="nm">Asterio</div>
+    <div class="orb" aria-hidden="true">
+      <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="#e9eef6" stroke-opacity=".12" stroke-width="1.2"/><g class="sat"><circle cx="32" cy="2" r="2.6" fill="#e9eef6"/></g></svg>
+      <img src="brand/mark.svg" alt="">
+    </div>
+    <img class="nm" src="brand/logo.svg" alt="Asterio" width="146" height="20">
     <div class="bar"><i id="bootBar"></i></div>
     <div class="txt" id="bootTxt">Starting the 3D engine</div>
     <div class="fatal" id="fatal" hidden></div>
