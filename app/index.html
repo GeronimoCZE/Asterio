@@ -1,0 +1,641 @@
+<title>Asterio</title>
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Asterio is a live 3D map of the space around Earth: satellites, debris, near-Earth asteroids, the Moon, atmosphere layers, radiation belts and space weather.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the 3D scene fills the window; a translucent nav floats over the top and a slim
+   footer over the bottom. Viewer controls sit in soft glass cards on the edges. Content pages
+   (About, Data, Terms, Cookies) slide over the scene as a calm reading column. */
+:root{
+  color-scheme: dark;
+  --bg:#05070d;
+  --bg-2:#0a0e17;
+  --surface:rgba(13,18,29,.70);
+  --surface-2:rgba(17,23,36,.92);
+  --line:rgba(255,255,255,.08);
+  --line-2:rgba(255,255,255,.14);
+  --text:#e9eef6;
+  --muted:#93a0b4;
+  --faint:#5d6a7e;
+  --accent:#5aa9ff;           /* ion blue */
+  --accent-soft:rgba(90,169,255,.14);
+  --live:#3ddc97;
+  --ok:#3ddc97; --warn:#ffd25e; --alert:#ff8a4c; --crit:#ff4f6d;
+  --f-sans:"Geist","Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"Geist Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --nav-h:60px;
+  --foot-h:34px;
+  --r:14px;
+  --gut:max(16px, env(safe-area-inset-left, 0px));
+  --gut-r:max(16px, env(safe-area-inset-right, 0px));
+  --safe-t:env(safe-area-inset-top, 0px);
+  --safe-b:env(safe-area-inset-bottom, 0px);
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);overflow:hidden}
+body{font-family:var(--f-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+a{color:inherit}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);box-shadow:0 10px 40px rgba(0,0,0,.35)}
+
+/* ── nav ─────────────────────────── */
+.nav{position:fixed;left:0;right:0;top:0;z-index:20;height:calc(var(--nav-h) + var(--safe-t));padding:var(--safe-t) var(--gut-r) 0 var(--gut);display:flex;align-items:center;gap:28px;background:linear-gradient(to bottom, rgba(5,7,13,.86), rgba(5,7,13,.55));backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:650;font-size:17px;letter-spacing:-.01em;flex:none}
+.logo svg{width:26px;height:26px}
+.links{display:flex;gap:4px}
+.links a{text-decoration:none;color:var(--muted);padding:7px 12px;border-radius:999px;font-size:14px;transition:color .15s, background .15s}
+.links a:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.links a[aria-current="page"]{color:var(--text);background:rgba(255,255,255,.08)}
+.nav .spacer{flex:1}
+#search{position:relative;width:320px}
+#search input{width:100%;height:36px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);font:inherit;font-size:13.5px;padding:0 40px 0 36px;outline:none;transition:border-color .15s, background .15s}
+#search input::placeholder{color:var(--faint)}
+#search input:focus{border-color:var(--accent);background:rgba(255,255,255,.08)}
+#search svg{position:absolute;left:13px;top:11px;width:14px;height:14px;stroke:var(--muted)}
+#search kbd{position:absolute;right:12px;top:9px;font-family:var(--f-mono);font-size:10.5px;color:var(--faint);border:1px solid var(--line-2);border-radius:5px;padding:0 5px}
+#results{position:absolute;top:44px;left:0;right:0;max-height:340px;overflow:auto;padding:6px}
+#results:empty{display:none}
+#results button{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border-radius:9px}
+#results button:hover,#results button.on{background:var(--accent-soft)}
+#results .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+#results .id{color:var(--faint);font-size:11.5px}
+#results .none{padding:10px;color:var(--muted);font-size:13px}
+.status{display:flex;align-items:center;gap:10px;flex:none;font-size:13px;color:var(--muted)}
+.pill{text-decoration:none;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12.5px;color:var(--text);white-space:nowrap}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.pill.live i{background:var(--live);box-shadow:0 0 0 0 rgba(61,220,151,.6);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.55)}70%{box-shadow:0 0 0 7px rgba(61,220,151,0)}100%{box-shadow:0 0 0 0 rgba(61,220,151,0)}}
+#clockT{color:var(--text);font-size:13px}
+#menuBtn{display:none;width:38px;height:38px;border-radius:10px;align-items:center;justify-content:center}
+#menuBtn svg{width:20px;height:20px;stroke:var(--text)}
+#mobileMenu{position:fixed;top:calc(var(--nav-h) + var(--safe-t) + 8px);right:var(--gut-r);left:var(--gut);z-index:21;padding:8px;display:flex;flex-direction:column}
+#mobileMenu a{padding:12px 14px;border-radius:10px;text-decoration:none;font-size:15px}
+#mobileMenu a:hover{background:rgba(255,255,255,.06)}
+#mobileMenu hr{border:0;border-top:1px solid var(--line);margin:6px 8px}
+
+/* ── viewer ─────────────────────────── */
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl.dragging{cursor:grabbing}
+#gl.hovering{cursor:pointer}
+#labels{position:fixed;inset:0;pointer-events:none;z-index:1;overflow:hidden}
+.hud{position:fixed;inset:0;pointer-events:none;z-index:2}
+.hud > *{pointer-events:auto}
+.vtop{top:calc(var(--nav-h) + var(--safe-t) + 14px)}
+.vbot{bottom:calc(var(--foot-h) + var(--safe-b) + 14px)}
+
+#focus{position:absolute;left:calc(var(--gut) + 98px);display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:999px;font-size:13px;pointer-events:none}
+#focus .v{font-weight:600}
+#focus .n{color:var(--muted);font-size:12px}
+#focus .sep{width:1px;height:14px;background:var(--line-2)}
+
+#ladder{position:absolute;left:var(--gut);width:84px;padding:10px 0;border-radius:18px}
+#ladderCanvas{position:absolute;top:12px;bottom:12px;left:9px;right:7px;width:calc(100% - 16px);height:calc(100% - 24px);cursor:pointer}
+#ladderTip{position:absolute;left:96px;width:270px;padding:12px 14px;pointer-events:none;transform:translateY(-50%);font-size:13px;line-height:1.45;color:var(--muted)}
+#ladderTip b{display:block;color:var(--text);font-weight:600;margin:6px 0 1px}
+#ladderTip .mono{color:var(--text);font-size:12px}
+
+#side{position:absolute;right:var(--gut-r);width:296px;display:flex;flex-direction:column;max-height:calc(100% - var(--nav-h) - var(--foot-h) - 250px);overflow:hidden}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px;border-bottom:1px solid var(--line)}
+.tabs button{padding:8px 10px;border-radius:9px;font-size:13px;color:var(--muted);font-weight:500}
+.tabs button[aria-selected="true"]{background:rgba(255,255,255,.08);color:var(--text)}
+.tabpane{padding:10px 14px 14px;overflow:auto}
+.pane-h{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 6px}
+.rows{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:14px 1fr auto;align-items:center;gap:10px;padding:7px 8px;margin:0 -8px;text-align:left;width:calc(100% + 16px);border-radius:9px}
+.row:hover{background:rgba(255,255,255,.05)}
+.row .nm{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{font-size:12px;color:var(--muted)}
+.row .ct i{font-style:normal;color:var(--faint)}
+.row.off .nm,.row.off .ct{color:var(--faint)}
+.row.off .sw{opacity:.25}
+.sw{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.sw.sq{border-radius:2px;transform:rotate(45deg) scale(.85)}
+.sw.tri{border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.sw.ring{background:transparent!important;border:1.6px solid currentColor}
+.foot{color:var(--faint);font-size:12px;line-height:1.5;margin-top:10px}
+.toggles{display:flex;flex-direction:column}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;font-size:13.5px;text-align:left;border-bottom:1px solid var(--line)}
+.tg:last-child{border-bottom:0}
+.tg .sw-t{width:32px;height:18px;border-radius:999px;background:rgba(255,255,255,.12);position:relative;flex:none;transition:background .18s}
+.tg .sw-t::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#cfd7e3;transition:transform .18s}
+.tg[aria-pressed="true"] .sw-t{background:var(--accent)}
+.tg[aria-pressed="true"] .sw-t::after{transform:translateX(14px);background:#fff}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:11px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-top:12px}
+.seg button{padding:8px 10px;border-radius:8px;font-size:12.5px;color:var(--muted);text-align:left;line-height:1.3}
+.seg button small{display:block;color:var(--faint);font-size:11px}
+.seg button[aria-pressed="true"]{background:rgba(255,255,255,.09);color:var(--text)}
+
+#detail{position:absolute;right:var(--gut-r);width:330px;padding:18px;display:flex;flex-direction:column;gap:12px;max-height:calc(100% - var(--nav-h) - var(--foot-h) - 250px);overflow:auto;z-index:3}
+#detail .kick{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500}
+#detail h2{margin:0;font-size:22px;line-height:1.15;font-weight:650;letter-spacing:-.015em;text-wrap:balance;word-break:break-word}
+#detail .ids{color:var(--muted);font-size:12px}
+#detail dl{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;margin:0;font-size:13px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#detail dt{color:var(--muted)}
+#detail dd{margin:0;text-align:right}
+#detail .acts{display:flex;gap:8px;flex-wrap:wrap}
+#detail .acts button,#detail .acts a{border:1px solid var(--line-2);border-radius:999px;padding:7px 13px;font-size:13px;text-decoration:none}
+#detail .acts button:hover,#detail .acts a:hover{background:rgba(255,255,255,.06)}
+#detail .acts button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:#cfe5ff}
+#detail .close{position:absolute;right:12px;top:12px;width:30px;height:30px;border-radius:50%;color:var(--muted);font-size:18px;line-height:1}
+#detail .close:hover{background:rgba(255,255,255,.07);color:var(--text)}
+#detail .note{font-size:12px;color:var(--faint);line-height:1.5}
+
+#time{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:2px;height:46px;padding:0 6px;border-radius:999px}
+#time button{height:34px;border-radius:999px;padding:0 12px;font-size:13px;color:var(--muted)}
+#time button:hover{color:var(--text);background:rgba(255,255,255,.05)}
+#time .live{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--muted)}
+#time .live i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+#time .live.on{color:var(--text)}
+#time .live.on i{background:var(--live)}
+#time .rates{display:flex;gap:2px;padding:0 4px;border-left:1px solid var(--line);border-right:1px solid var(--line);margin:0 4px}
+#time .rates button{font-family:var(--f-mono);font-size:12px;padding:0 10px}
+#time .rates button[aria-pressed="true"]{background:var(--text);color:var(--bg)}
+#time .ic{width:34px;padding:0;display:flex;align-items:center;justify-content:center}
+#time svg{width:13px;height:13px;fill:currentColor}
+#time .off{display:flex;flex-direction:column;justify-content:center;padding:0 12px 0 8px;line-height:1.2}
+#time .off span:first-child{font-size:10.5px;color:var(--faint)}
+#time .off span:last-child{font-size:12.5px}
+
+#wx{position:absolute;right:var(--gut-r);width:296px;padding:14px 16px}
+#wx .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+#wx .head b{font-weight:600;font-size:13.5px}
+#wx .stamp{font-size:11.5px;color:var(--faint)}
+#wx .kp{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:end}
+#wx .kpv{display:flex;flex-direction:column}
+#wx .kpv b{font-family:var(--f-mono);font-size:28px;font-weight:500;line-height:1}
+#wx .kpv span{font-size:11.5px;color:var(--muted);margin-top:4px}
+#kpbars{height:40px;width:100%;display:block}
+#wx .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+#wx .grid div{display:flex;flex-direction:column;gap:1px}
+#wx .grid span{color:var(--muted);font-size:11.5px}
+#wx .grid b{font-family:var(--f-mono);font-weight:500;font-size:14px}
+#wx .grid small{color:var(--faint);font-size:11px}
+#wx .scales{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+#wx .scales span{font-family:var(--f-mono);font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.05);color:var(--muted)}
+#wx .scales span.hot{background:rgba(255,210,94,.14);color:var(--warn)}
+
+#hint{transition:opacity .6s;position:absolute;left:calc(var(--gut) + 98px);display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);pointer-events:none}
+#hint .sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+#tileChip{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--nav-h) + var(--safe-t) + 14px);font-size:12.5px;pointer-events:none}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:var(--accent);animation:spin .9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.vfoot{position:fixed;left:0;right:0;bottom:0;z-index:4;height:calc(var(--foot-h) + var(--safe-b));padding:0 var(--gut-r) var(--safe-b) var(--gut);display:flex;align-items:center;gap:18px;font-size:12px;color:var(--faint);background:linear-gradient(to top, rgba(5,7,13,.8), rgba(5,7,13,0));}
+.vfoot a{text-decoration:none;color:var(--muted)}
+.vfoot a:hover{color:var(--text)}
+.vfoot .spacer{flex:1}
+
+#dock{display:none}
+
+/* ── tooltip & labels ─────────────────── */
+#tip{position:fixed;left:0;top:0;z-index:6;pointer-events:none;will-change:transform;display:flex;align-items:flex-start}
+#tip .lead{width:26px;height:26px;flex:none;overflow:visible}
+#tip .lead line{stroke:var(--accent);stroke-width:1.2}
+#tip .lead circle{fill:none;stroke:var(--accent);stroke-width:1.5}
+#tip .box{margin-top:16px;padding:11px 13px;min-width:200px;max-width:270px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+#tip .t{font-weight:600;font-size:14px;line-height:1.25;word-break:break-word}
+#tip .k{font-size:12px;margin:1px 0 8px;font-weight:500}
+#tip dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12px}
+#tip dt{color:var(--muted)}
+#tip dd{margin:0;text-align:right;font-family:var(--f-mono)}
+#tip .hint{margin-top:8px;color:var(--faint);font-size:11.5px}
+.lab{position:absolute;left:0;top:0;white-space:nowrap;font-size:11.5px;color:var(--text);will-change:transform;display:flex;align-items:center;gap:6px;text-shadow:0 0 6px #000,0 0 2px #000}
+.lab i{width:5px;height:5px;border-radius:50%;background:currentColor}
+.lab.port{color:#ffd9a0;font-size:11px}
+.lab.big{font-weight:600;letter-spacing:.04em;font-size:11.5px}
+.lab.neo{color:#ff7aa2}
+.lab.sel{color:var(--accent);font-weight:600}
+.lab.ring{color:#b9c6d8;font-family:var(--f-mono);font-size:10.5px;text-shadow:0 0 4px #000,0 0 8px #000,0 0 2px #000}
+.lab.ring i{background:none;border:1px solid currentColor;width:6px;height:6px}
+
+/* ── content pages ─────────────────── */
+.page-doc{position:fixed;inset:0;z-index:8;overflow-y:auto;background:radial-gradient(1200px 600px at 80% -10%, rgba(90,169,255,.10), transparent 60%), var(--bg);padding-top:calc(var(--nav-h) + var(--safe-t))}
+.wrap{max-width:1080px;margin:0 auto;padding:0 var(--gut-r) 0 var(--gut)}
+.doc-hero{padding:72px 0 36px}
+.eyebrow{color:var(--accent);font-size:13px;font-weight:500;margin-bottom:12px}
+.doc-hero h1{font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.03em;font-weight:650;margin:0 0 18px;text-wrap:balance;max-width:16ch}
+.doc-hero p{font-size:18px;color:var(--muted);max-width:62ch;margin:0}
+.doc-hero .cta{display:flex;gap:10px;margin-top:28px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:999px;text-decoration:none;font-weight:500;font-size:14.5px;border:1px solid var(--line-2)}
+.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn:hover{filter:brightness(1.08)}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,.65fr);gap:56px;align-items:end}
+.now{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg, rgba(90,169,255,.06), rgba(90,169,255,0) 60%), var(--bg-2);padding:18px 20px 8px}
+.now-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);margin-bottom:6px}
+.now-h span:first-child{display:flex;align-items:center;gap:8px;color:var(--text);font-weight:500}
+.now-h i{width:7px;height:7px;border-radius:50%;background:var(--live)}
+.now dl{margin:0;display:grid;grid-template-columns:1fr auto}
+.now dt,.now dd{padding:11px 0;border-top:1px solid var(--line);margin:0;font-size:14px}
+.now dt{color:var(--muted)}
+.now dd{font-family:var(--f-mono);text-align:right;color:var(--text)}
+.now dd small{color:var(--faint);font-family:var(--f-sans);margin-left:6px}
+.sect{padding:44px 0;border-top:1px solid var(--line)}
+.sect h2{font-size:24px;letter-spacing:-.02em;font-weight:600;margin:0 0 8px}
+.sect > p, .sect .lede{color:var(--muted);max-width:66ch;margin:0 0 24px;font-size:15.5px}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.tile{padding:20px;border-radius:var(--r);background:var(--bg-2);border:1px solid var(--line);min-width:0}
+.tile h3{margin:0 0 6px;font-size:16px;font-weight:600}
+.tile p{margin:0;color:var(--muted);font-size:14px}
+.tile ul{margin:10px 0 0;padding:0;list-style:none;font-size:13.5px;color:var(--muted)}
+.tile li{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid var(--line)}
+.tile li span:last-child{font-family:var(--f-mono);color:var(--text)}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;counter-reset:s}
+.steps .tile{position:relative}
+.steps .tile::before{counter-increment:s;content:counter(s);display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:13px;font-weight:600;margin-bottom:12px}
+.diagram{overflow-x:auto;border-radius:var(--r);border:1px solid var(--line);background:var(--bg-2);padding:18px 18px 10px}
+.diagram svg{display:block;min-width:760px;width:100%;height:auto}
+.credits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 32px;font-size:14px}
+.credits div{padding:10px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:16px}
+.credits div span:first-child{color:var(--muted)}
+.prose{max-width:720px;padding-bottom:40px}
+.prose h2{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:34px 0 8px}
+.prose p,.prose li{color:#c3ccd9;font-size:15.5px;line-height:1.65}
+.prose ul{padding-left:20px}
+.prose code{font-family:var(--f-mono);font-size:13px;background:rgba(255,255,255,.06);padding:1px 6px;border-radius:5px}
+.updated{color:var(--faint);font-size:13px;margin-top:10px}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--bg-2)}
+table.src{width:100%;border-collapse:collapse;font-size:13.5px;min-width:720px}
+table.src th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:12px 14px;border-bottom:1px solid var(--line-2)}
+table.src td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5;color:#c3ccd9}
+table.src tr:last-child td{border-bottom:0}
+table.src td:first-child{font-weight:600;color:var(--text);width:20%}
+.badge{display:inline-block;font-size:11.5px;font-weight:500;padding:2px 9px;border-radius:999px;white-space:nowrap;background:rgba(255,255,255,.07);color:var(--muted)}
+.badge.live{background:rgba(61,220,151,.14);color:var(--live)}
+.badge.snap{background:var(--accent-soft);color:#9ccbff}
+.badge.model{background:rgba(255,255,255,.06);color:var(--muted)}
+.badge.fail{background:rgba(255,79,109,.14);color:var(--crit)}
+
+.site-foot{border-top:1px solid var(--line);margin-top:40px;padding:40px 0 calc(40px + var(--safe-b));color:var(--muted);font-size:13.5px}
+.site-foot .fgrid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:32px}
+.site-foot h4{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--text)}
+.site-foot a{display:block;text-decoration:none;color:var(--muted);padding:3px 0}
+.site-foot a:hover{color:var(--text)}
+.site-foot .fine{margin-top:32px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:12.5px}
+
+/* ── loader, notice, toast ───────────── */
+#boot{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;align-items:center;justify-content:center;transition:opacity .7s ease;padding:0 var(--gut-r) 0 var(--gut)}
+#boot.gone{opacity:0;pointer-events:none}
+#boot.away{display:none}
+#boot .in{width:min(300px,100%);display:flex;flex-direction:column;align-items:center;text-align:center}
+#boot .orb{width:64px;height:64px;margin-bottom:22px}
+#boot .orb .sat{transform-origin:32px 32px;animation:orbit 2.4s linear infinite}
+@keyframes orbit{to{transform:rotate(360deg)}}
+#boot .nm{font-size:20px;font-weight:650;letter-spacing:-.01em}
+#boot .bar{width:100%;height:3px;border-radius:999px;background:rgba(255,255,255,.08);margin:20px 0 10px;overflow:hidden}
+#boot .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .35s ease}
+#boot .txt{font-size:13px;color:var(--muted);min-height:20px}
+#boot .fatal{margin-top:16px;color:var(--crit);font-size:13.5px;line-height:1.5}
+#notice{position:fixed;left:var(--gut);bottom:calc(var(--foot-h) + var(--safe-b) + 14px);z-index:30;width:min(380px, calc(100% - 32px));padding:16px;display:flex;flex-direction:column;gap:12px;font-size:13.5px;color:var(--muted)}
+#notice b{color:var(--text);font-weight:600}
+#notice .row2{display:flex;gap:8px;justify-content:flex-end}
+#notice button,#notice a{height:34px;padding:0 14px;border-radius:999px;font-size:13px;display:inline-flex;align-items:center;text-decoration:none}
+#notice .ok{background:var(--text);color:var(--bg);font-weight:500}
+#notice a{border:1px solid var(--line-2);color:var(--text)}
+#toast{position:fixed;left:50%;top:calc(var(--nav-h) + var(--safe-t) + 60px);transform:translateX(-50%);z-index:9;padding:10px 16px;border-radius:999px;font-size:13px}
+
+/* ── responsive ─────────────────────── */
+@media (max-width:1180px){
+  #search{width:240px}
+  .links a{padding:7px 9px}
+}
+@media (max-width:960px){
+  .cols{grid-template-columns:1fr 1fr}
+  .hero-grid{grid-template-columns:1fr;gap:32px}
+  .steps{grid-template-columns:1fr 1fr}
+}
+@media (max-width:860px){
+  :root{--nav-h:56px}
+  .links,.status .clock,#search kbd{display:none}
+  #menuBtn{display:flex}
+  .nav{gap:12px}
+  #search{position:fixed;top:calc(var(--nav-h) + var(--safe-t) + 10px);left:calc(var(--gut) + 54px);right:var(--gut-r);width:auto;z-index:19}
+  #search input{background:var(--surface-2)}
+  #focus,#hint,.vfoot{display:none}
+  #ladder{width:46px;top:calc(var(--nav-h) + var(--safe-t) + 10px)!important;bottom:calc(var(--safe-b) + 112px)!important}
+  #ladderTip{left:56px;width:230px}
+  #ladderCanvas{left:5px;right:3px;width:calc(100% - 8px)}
+  #side,#wx{display:none}
+  #side.open,#wx.open{display:flex;position:fixed;left:var(--gut);right:var(--gut-r);width:auto;top:auto;bottom:calc(var(--safe-b) + 112px);max-height:56%;z-index:6}
+  #wx.open{display:block}
+  #detail{left:var(--gut);right:var(--gut-r);width:auto;top:auto!important;bottom:calc(var(--safe-b) + 112px);max-height:52%}
+  #time{left:var(--gut);right:var(--gut-r);transform:none;bottom:calc(var(--safe-b) + 60px);height:44px;justify-content:space-between}
+  #time .off{display:none}
+  #time .rates button{padding:0 8px}
+  #dock{display:grid;grid-template-columns:repeat(4,1fr);position:absolute;left:var(--gut);right:var(--gut-r);bottom:calc(var(--safe-b) + 12px);height:40px;padding:4px;border-radius:999px}
+  #dock button{border-radius:999px;font-size:12.5px;color:var(--muted);font-weight:500}
+  #dock button[aria-pressed="true"]{background:rgba(255,255,255,.09);color:var(--text)}
+  #tileChip{top:calc(var(--nav-h) + var(--safe-t) + 60px)}
+  #notice{bottom:calc(var(--safe-b) + 112px)}
+  .site-foot .fgrid{grid-template-columns:1fr 1fr}
+  .site-foot .fgrid > div:first-child{grid-column:1 / -1}
+  .credits{grid-template-columns:1fr}
+  .doc-hero{padding:48px 0 28px}
+}
+@media (max-width:700px){
+  .tablewrap{overflow:visible;border:0;background:none}
+  table.src{min-width:0}
+  table.src thead{display:none}
+  table.src,table.src tbody,table.src tr,table.src td{display:block;width:auto}
+  table.src tr{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;display:grid;grid-template-columns:1fr auto;gap:4px 12px}
+  table.src td{padding:0;border:0}
+  table.src td:first-child{width:auto;grid-column:1;font-size:15px}
+  table.src td:nth-child(3){grid-column:2;grid-row:1}
+  table.src td:nth-child(2){grid-column:1 / -1;color:var(--muted);font-size:13px}
+  table.src td:nth-child(4){grid-column:1 / -1;font-size:13.5px;margin-top:4px}
+  table.src td:nth-child(4):empty{display:none}
+}
+@media (max-width:560px){
+  .cols,.steps{grid-template-columns:1fr}
+  .status .pill span{display:none}
+  .status .pill{padding:0 10px}
+}
+@media (prefers-reduced-motion:reduce){
+  .pill.live i,#boot .orb .sat,.spin{animation:none}
+  #boot{transition:none}
+}
+</style>
+
+<header class="nav">
+  <a class="logo" href="#explore" aria-label="Asterio home">
+    <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="7.5" fill="#5aa9ff"/><circle cx="16" cy="16" r="7.5" fill="url(#lg)"/><ellipse cx="16" cy="16" rx="14" ry="5.2" transform="rotate(-24 16 16)" stroke="#e9eef6" stroke-opacity=".55" stroke-width="1.3"/><circle cx="27.2" cy="11" r="2" fill="#e9eef6"/><defs><radialGradient id="lg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(13 13) scale(10)"><stop stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#0b2a55" stop-opacity=".7"/></radialGradient></defs></svg>
+    Asterio
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#explore" data-route="explore">Explore</a>
+    <a href="#about" data-route="about">About</a>
+    <a href="#data" data-route="data">Data sources</a>
+  </nav>
+  <div class="spacer"></div>
+  <div id="search" role="search">
+    <svg viewBox="0 0 16 16" fill="none" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
+    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search satellites and asteroids" aria-label="Search satellites, NORAD ID or asteroids">
+    <kbd>/</kbd>
+    <div id="results" class="card" role="listbox"></div>
+  </div>
+  <div class="status">
+    <a class="pill" id="dataPill" href="#data" title="Where the data comes from"><i></i><span id="dataChip">Loading</span></a>
+    <span class="clock mono" id="clockT">--:--:-- UTC</span>
+  </div>
+  <button id="menuBtn" aria-label="Open menu" aria-expanded="false"><svg viewBox="0 0 20 20" fill="none" stroke-width="1.6"><path d="M3 6h14M3 10h14M3 14h14"/></svg></button>
+</header>
+<div id="mobileMenu" class="card" hidden>
+  <a href="#explore">Explore</a><a href="#about">About</a><a href="#data">Data sources</a><hr><a href="#terms">Terms of Use</a><a href="#cookies">Cookie Policy</a>
+</div>
+
+<!-- ───────────── Explore ───────────── -->
+<canvas id="gl" aria-label="3D view of Earth and the objects orbiting it"></canvas>
+<div id="labels" aria-hidden="true"></div>
+<div class="hud" id="hud">
+  <div id="focus" class="card vtop"><span class="label">Focus</span><span class="v" id="focusV">—</span><span class="sep"></span><span class="n mono" id="focusN"></span></div>
+  <div id="ladder" class="card vtop vbot" aria-label="Altitude ladder"><canvas id="ladderCanvas"></canvas><div id="ladderTip" class="card" hidden></div></div>
+  <div id="tileChip" class="pill" hidden><span class="spin"></span>Loading sharper imagery</div>
+
+  <div id="side" class="card vtop">
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="objects">Objects</button>
+      <button role="tab" aria-selected="false" data-tab="layers">Layers</button>
+    </div>
+    <div class="tabpane" id="pane-objects">
+      <div class="pane-h"><span class="label">Class</span><span class="label">In view / total</span></div>
+      <div class="rows" id="classes"></div>
+      <div class="foot">Tap a class to hide it. Objects far above your altitude fade out as you zoom in.</div>
+    </div>
+    <div class="tabpane" id="pane-layers" hidden>
+      <div class="toggles" id="layers"></div>
+      <div class="seg" id="imagery">
+        <button data-img="bm" aria-pressed="true">Blue Marble<small>2004 composite</small></button>
+        <button data-img="viirs" aria-pressed="false">Satellite view<small>13 Nov 2026</small></button>
+      </div>
+    </div>
+  </div>
+
+  <aside id="detail" class="card vtop" hidden aria-live="polite"></aside>
+
+  <div id="hint" class="vbot"><span>Drag to rotate</span><span class="sep"></span><span>Scroll to zoom</span><span class="sep"></span><span>Hover any dot</span></div>
+
+  <div id="time" class="card vbot">
+    <button class="live" id="liveBtn" title="Return to live time"><i></i>Live</button>
+    <button class="ic" id="back" title="Back 1 hour" aria-label="Back 1 hour"><svg viewBox="0 0 16 16"><path d="M8 3L2 8l6 5zM15 3L9 8l6 5z"/></svg></button>
+    <div class="rates" id="rates">
+      <button data-rate="0" aria-label="Pause">❙❙</button>
+      <button data-rate="1" aria-pressed="true">1×</button>
+      <button data-rate="60">60×</button>
+      <button data-rate="600">600×</button>
+      <button data-rate="3600">1h/s</button>
+    </div>
+    <button class="ic" id="fwd" title="Forward 1 hour" aria-label="Forward 1 hour"><svg viewBox="0 0 16 16"><path d="M8 3l6 5-6 5zM1 3l6 5-6 5z"/></svg></button>
+    <div class="off mono"><span>Offset</span><span id="offset">+00:00:00</span></div>
+  </div>
+
+  <section id="wx" class="card vbot">
+    <div class="head"><b>Space weather</b><span class="stamp mono" id="wxStamp">—</span></div>
+    <div class="kp">
+      <div class="kpv"><b id="kpNow">–</b><span>Kp index</span></div>
+      <canvas id="kpbars" aria-label="Planetary K-index, last 7 days"></canvas>
+    </div>
+    <div class="grid">
+      <div><span>Solar wind</span><b id="swV">–</b><small>km/s</small></div>
+      <div><span>IMF Bz</span><b id="swBz">–</b><small id="swBt">nT</small></div>
+      <div><span>X-ray</span><b id="xr">–</b><small>GOES</small></div>
+    </div>
+    <div class="scales" id="scales"></div>
+  </section>
+
+  <nav id="dock" class="card">
+    <button data-open="objects" aria-pressed="false">Objects</button>
+    <button data-open="layers" aria-pressed="false">Layers</button>
+    <button data-open="wx" aria-pressed="false">Weather</button>
+    <button data-open="home" aria-pressed="false">Reset</button>
+  </nav>
+</div>
+<footer class="vfoot" id="vfoot">
+  <span>© 2026 Asterio</span><a href="#about">About</a><a href="#data">Data sources</a><a href="#terms">Terms</a><a href="#cookies">Cookies</a>
+  <span class="spacer"></span><span id="dataTxt">Orbital data from CelesTrak, NASA/JPL and NOAA</span>
+</footer>
+
+<!-- ───────────── About ───────────── -->
+<main id="page-about" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero hero-grid">
+      <div>
+        <div class="eyebrow">About Asterio</div>
+        <h1>A live map of the space around Earth</h1>
+        <p>Asterio shows every tracked satellite and debris fragment, the Moon, asteroids passing nearby, and the layers of air and radiation they move through. Everything is drawn to scale and moves in real time in your browser.</p>
+        <div class="cta"><a class="btn primary" href="#explore">Open the 3D view</a><a class="btn" href="#data">See the data sources</a></div>
+      </div>
+      <aside class="now" aria-label="Current numbers">
+        <div class="now-h"><span><i></i>Right now</span><span class="mono" id="nowT">—</span></div>
+        <dl id="nowRows"><dt>Objects tracked</dt><dd>—</dd></dl>
+      </aside>
+    </section>
+
+    <section class="sect">
+      <h2>From the ground to 7.5 million km</h2>
+      <p class="lede">The altitude scale is logarithmic, so the 12 km of weather and the 7.5 million km of asteroid space fit on one line. Bars show how many tracked objects sit at each height right now.</p>
+      <div class="diagram" id="altDiagram" role="img" aria-label="Atmosphere layers, orbit regions and object counts by altitude"></div>
+    </section>
+
+    <section class="sect">
+      <h2>What you are looking at</h2>
+      <p class="lede">Three kinds of things share the view. Each is handled a little differently, and the app labels which is which.</p>
+      <div class="cols">
+        <div class="tile"><h3>Tracked objects</h3><p>Active satellites and catalogued debris from CelesTrak, the public mirror of US Space Force tracking.</p><ul id="aboutCounts"></ul></div>
+        <div class="tile"><h3>Moon and asteroids</h3><p>Positions come from NASA JPL ephemerides. The asteroid list covers every known object passing within 0.05 AU (7.5 million km) between 12 November 2026 and 15 January 2027.</p><ul id="aboutNeo"></ul></div>
+        <div class="tile"><h3>Layers and fields</h3><p>Atmosphere layers use standard boundary heights. The Van Allen belts follow Earth's tilted magnetic dipole. The aurora oval is NOAA's OVATION forecast.</p><ul><li><span>Kármán line</span><span>100 km</span></li><li><span>Thermosphere top</span><span>~600 km</span></li><li><span>Geostationary belt</span><span>35,786 km</span></li></ul></div>
+      </div>
+    </section>
+
+    <section class="sect">
+      <h2>How it works</h2>
+      <p class="lede">Nothing is pre-rendered. The page downloads published orbital data once, then computes every position itself.</p>
+      <div class="steps">
+        <div class="tile"><h3>Load the catalogue</h3><p>About 18,500 two-line element sets, each describing one orbit at a moment in time.</p></div>
+        <div class="tile"><h3>Propagate</h3><p>The SGP4 model moves each object to the current second. Your browser does this thousands of times per second.</p></div>
+        <div class="tile"><h3>Place the Moon and asteroids</h3><p>JPL Horizons vectors are interpolated to the current time, with the Sun direction for lighting.</p></div>
+        <div class="tile"><h3>Stream the Earth</h3><p>NASA imagery loads in tiles as you zoom, from a 4,096 px globe up to 16,384 px (about 2.4 km per pixel).</p></div>
+      </div>
+    </section>
+
+    <section class="sect">
+      <h2>Live, snapshot or model</h2>
+      <p class="lede">Satellite motion is always computed live. The orbital data itself was downloaded on 15 November 2026 at 02:20 UTC. Element sets stay accurate to a few kilometres for several days, then drift. When Asterio is opened from its own web address it refreshes the catalogue from CelesTrak and space weather from NOAA automatically. Inside claude.ai the page cannot reach outside sources, so it uses the bundled snapshot. The Data sources page lists the state of every layer.</p>
+    </section>
+
+    <section class="sect">
+      <h2>Credits</h2>
+      <div class="credits">
+        <div><span>Orbital elements</span><span>CelesTrak</span></div>
+        <div><span>Ephemerides, close approaches</span><span>NASA JPL SSD</span></div>
+        <div><span>Space weather, aurora</span><span>NOAA SWPC</span></div>
+        <div><span>Earth imagery</span><span>NASA GIBS (Blue Marble, VIIRS)</span></div>
+        <div><span>Borders</span><span>Natural Earth</span></div>
+        <div><span>Stars, Milky Way outline</span><span>d3-celestial (Hipparcos)</span></div>
+        <div><span>3D engine</span><span>three.js (MIT)</span></div>
+        <div><span>Orbit propagation</span><span>satellite.js (MIT)</span></div>
+      </div>
+    </section>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<!-- ───────────── Data sources ───────────── -->
+<main id="page-data" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero">
+      <div class="eyebrow">Data sources</div>
+      <h1>Where every layer comes from</h1>
+      <p>Each position on screen is computed in your browser from published data. This table shows what is measured, what is a snapshot and what is a model, and when each was last updated.</p>
+    </section>
+    <div class="tablewrap"><table class="src"><thead><tr><th>Layer</th><th>Source</th><th>State</th><th>How it is used</th></tr></thead><tbody id="srcRows"></tbody></table></div>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<!-- ───────────── Terms ───────────── -->
+<main id="page-terms" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Terms of Use</h1><p class="updated">Last updated 15 November 2026</p></section>
+    <article class="prose">
+      <p>These terms apply when you use Asterio, the website and 3D viewer that shows objects in orbit around Earth. By using Asterio you agree to them. If you do not agree, please do not use the site.</p>
+      <h2>1. What Asterio is</h2>
+      <p>Asterio is an educational visualisation. It downloads publicly available orbital, astronomical and space-weather data and draws it in your browser. It does not collect accounts, payments or personal information.</p>
+      <h2>2. For information only</h2>
+      <p>Positions shown in Asterio are estimates. Satellite positions can be off by several kilometres, and more as the underlying data ages. Do not use Asterio for navigation, collision avoidance, launch or spacecraft operations, radio scheduling, or any decision where safety, property or money depends on precise positions. Use the original data providers for those purposes.</p>
+      <h2>3. Third-party data</h2>
+      <p>The data belongs to, or is published by, the organisations credited on the Data sources page, including CelesTrak, NASA, NOAA and Natural Earth. Their own terms and credit requirements continue to apply. Asterio is not affiliated with or endorsed by any of them.</p>
+      <h2>4. Acceptable use</h2>
+      <ul>
+        <li>Do not use Asterio, or automated tools pointed at it, to send excessive requests to the data providers it connects to.</li>
+        <li>Do not attempt to disrupt the site or the services that host it.</li>
+        <li>Do not present screenshots or recordings in a way that suggests they show official or exact positions.</li>
+      </ul>
+      <h2>5. No warranty</h2>
+      <p>Asterio is provided as is and as available, without warranties of any kind, express or implied, including accuracy, availability, fitness for a particular purpose and non-infringement. Data may be delayed, incomplete or wrong.</p>
+      <h2>6. Limitation of liability</h2>
+      <p>To the fullest extent the law allows, the people who run Asterio are not liable for any indirect, incidental or consequential loss, or for any loss arising from reliance on the information shown.</p>
+      <h2>7. Open-source components</h2>
+      <p>Asterio uses open-source software including three.js and satellite.js under the MIT licence, and the Geist typeface under the SIL Open Font License. Those licences govern those components.</p>
+      <h2>8. Changes</h2>
+      <p>These terms may change as the site changes. The date at the top shows the latest version. Continuing to use Asterio after a change means you accept the updated terms.</p>
+      <h2>9. Contact</h2>
+      <p>Questions about these terms can be sent to the person or organisation that shared Asterio with you.</p>
+    </article>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<!-- ───────────── Cookies ───────────── -->
+<main id="page-cookies" class="page-doc" hidden>
+  <div class="wrap">
+    <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Cookie Policy</h1><p class="updated">Last updated 15 November 2026</p></section>
+    <article class="prose">
+      <p><strong>Asterio does not set any cookies.</strong> It has no analytics, advertising or tracking scripts, and it does not ask you to sign in.</p>
+      <h2>What Asterio stores on your device</h2>
+      <p>To remember how you like the view, Asterio saves a few small settings in your browser's local storage. They never leave your device and are not readable by other websites.</p>
+      <ul>
+        <li><code>asterio.imagery</code> — which Earth imagery you picked</li>
+        <li><code>asterio.layer.*</code> — which layers are switched on</li>
+        <li><code>asterio.class.*</code> — which object classes are shown</li>
+        <li><code>asterio.notice</code> — that you dismissed the storage notice</li>
+      </ul>
+      <p>You can remove them at any time by clearing site data for this page in your browser settings. Asterio works the same without them; it just forgets your choices.</p>
+      <h2>Requests to other services</h2>
+      <p>Loading the page contacts a few services. Like any web request, these receive your IP address and basic browser information, under their own privacy policies:</p>
+      <ul>
+        <li>Google Fonts (<code>fonts.googleapis.com</code>, <code>fonts.gstatic.com</code>) for the typeface</li>
+        <li>jsDelivr (<code>cdn.jsdelivr.net</code>) for the three.js and satellite.js libraries</li>
+        <li>When opened from its own web address: CelesTrak (<code>celestrak.org</code>) and NOAA SWPC (<code>services.swpc.noaa.gov</code>) for fresh data</li>
+      </ul>
+      <h2>The page that hosts Asterio</h2>
+      <p>If you open Asterio inside claude.ai, that platform's own cookie and privacy policies apply to the surrounding page. This policy covers only Asterio itself.</p>
+      <h2>Changes</h2>
+      <p>If Asterio ever starts using cookies or analytics, this page will say so before it happens.</p>
+    </article>
+    <footer class="site-foot"></footer>
+  </div>
+</main>
+
+<template id="footTpl">
+  <div class="fgrid">
+    <div><a class="logo" href="#explore" style="padding:0;color:var(--text)">Asterio</a><p style="margin:10px 0 0;max-width:40ch">A live 3D map of satellites, debris, asteroids and the layers around Earth.</p></div>
+    <div><h4>Explore</h4><a href="#explore">3D view</a><a href="#about">About</a><a href="#data">Data sources</a></div>
+    <div><h4>Legal</h4><a href="#terms">Terms of Use</a><a href="#cookies">Cookie Policy</a></div>
+  </div>
+  <div class="fine"><span>© 2026 Asterio. Not affiliated with NASA, NOAA or CelesTrak.</span><span>Orbital data: CelesTrak · Ephemerides: NASA JPL · Space weather: NOAA SWPC · Imagery: NASA GIBS</span></div>
+</template>
+
+<div id="tip" hidden>
+  <svg class="lead" viewBox="0 0 26 26"><circle cx="0" cy="0" r="9"/><line x1="6.4" y1="6.4" x2="26" y2="26"/></svg>
+  <div class="box" id="tipBox"></div>
+</div>
+<div id="toast" class="card" hidden></div>
+<div id="notice" class="card" hidden role="dialog" aria-label="Storage notice">
+  <div><b>No cookies here.</b> Asterio only keeps your view settings in this browser so they stick between visits.</div>
+  <div class="row2"><a href="#cookies">Read the policy</a><button class="ok" id="noticeOk">Got it</button></div>
+</div>
+
+<div id="boot">
+  <div class="in">
+    <svg class="orb" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="32" cy="32" r="14" fill="#5aa9ff" opacity=".9"/><circle cx="32" cy="32" r="14" fill="url(#bg)"/>
+      <circle cx="32" cy="32" r="26" stroke="#e9eef6" stroke-opacity=".14" stroke-width="1.2"/>
+      <g class="sat"><circle cx="32" cy="6" r="3" fill="#e9eef6"/></g>
+      <defs><radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(27 26) scale(18)"><stop stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#06213f" stop-opacity=".8"/></radialGradient></defs>
+    </svg>
+    <div class="nm">Asterio</div>
+    <div class="bar"><i id="bootBar"></i></div>
+    <div class="txt" id="bootTxt">Starting the 3D engine</div>
+    <div class="fatal" id="fatal" hidden></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script type="module" src="app.js"></script>

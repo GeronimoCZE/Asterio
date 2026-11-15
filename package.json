@@ -1,0 +1,14 @@
+{
+  "name": "asterio",
+  "version": "1.0.0",
+  "description": "A live 3D map of satellites, debris, near-Earth asteroids and the layers around Earth.",
+  "private": true,
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "LOG=1 node --watch server.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED"
+}
