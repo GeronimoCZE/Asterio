@@ -1,12 +1,12 @@
-# Asterio brand
+# Galacticio brand
 
-![Asterio brand sheet](brand-sheet.png)
+![Galacticio brand sheet](brand-sheet.png)
 
 ## The idea
 
-The A in ASTERIO has no crossbar. Earth's horizon takes its place, and the Sun is just clearing the limb: what you see from orbit at sunrise. Ion blue is the atmosphere, white is sunlight. The rest of the wordmark is drawn as wide, monoline capitals with an 8-unit stroke on a 60-unit cap height, so it stays calm next to the 3D view.
+Each A in GALACTICIO has no crossbar. Earth's horizon takes its place. In the first A the Sun is just clearing the limb: what you see from orbit at sunrise. The second A keeps the horizon only, so there is one Sun. Ion blue is the atmosphere, white is sunlight. The A on its own is the mark and the app icon. The rest of the wordmark is drawn as wide, monoline capitals with an 8-unit stroke on a 60-unit cap height, so it stays calm next to the 3D view.
 
-The wordmark is custom drawn. Don't retype "ASTERIO" in a font.
+The wordmark is custom drawn. Don't retype "GALACTICIO" in a font. The round letters (G, C, O) share one stadium curve; the wordmark's viewBox is 604 x 60.
 
 ## Files
 
@@ -26,7 +26,7 @@ All served files live in `app/brand/` (and the favicons in `app/`).
 | `app/brand/icon-maskable-512.png` | PWA maskable icon (A inside the 80% safe zone) |
 | `app/site.webmanifest` | PWA manifest pointing at the icons |
 | `app/brand/og-default.png` | Social card, 1200 x 630 |
-| `app/brand/og-about.png`, `og-sources.png`, `og-terms.png`, `og-privacy.png`, `og-cookies.png` | Per-page social cards |
+| `app/brand/og-about.png`, `og-sources.png`, `og-satellites.png`, `og-terms.png`, `og-privacy.png`, `og-cookies.png` | Per-page social cards |
 
 The social cards are rendered from the app's own Blue Marble and night-lights textures: Europe at night from orbit, with the Sun rising over the limb.
 
@@ -54,8 +54,8 @@ These match the site's existing CSS tokens; nothing in `app/index.html` needs to
 ## Usage
 
 - Clear space: half the cap height on every side of the wordmark.
-- Smallest sizes: wordmark 14 px tall (about 100 px wide), mark 16 px. Below 48 px use `favicon.svg`, which drops the Sun and thickens the A.
-- In the nav, show the wordmark at 16 to 18 px tall; it replaces both the old icon and the "Asterio" text.
+- Smallest sizes: wordmark 14 px tall (about 141 px wide), mark 16 px. Below 48 px use `favicon.svg`, which drops the Sun and thickens the A.
+- In the nav, show the wordmark at 16 to 18 px tall (161 to 181 px wide).
 - Keep the horizon ion blue. For one colour, use `logo-mono.svg`.
 - Over imagery, put the logo on Space or a dark scrim.
 
@@ -65,7 +65,7 @@ The SVGs are generated from `brand/src/geom.mjs` (letter geometry) and `brand/sr
 
 ```sh
 node brand/src/svgs.mjs                     # writes app/brand/*.svg and app/favicon.svg
-NODE_PATH=$(npm root -g) node brand/src/og.mjs [default|about|sources|terms|privacy|cookies]
+NODE_PATH=$(npm root -g) node brand/src/og.mjs [default|about|sources|satellites|terms|privacy|cookies]
 convert brand/src/raw-og-default.png -filter Lanczos -resize 1200x630 -strip app/brand/og-default.png
 NODE_PATH=$(npm root -g) node brand/src/rast.mjs app/brand/icon.svg 512 app/brand/icon-512.png
 NODE_PATH=$(npm root -g) node brand/src/sheet.mjs brand/brand-sheet.png
