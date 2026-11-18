@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /* ════════════════════════════════════════════════════════════════
-   ASTERIO — orbital watch
+   GALACTICIO — orbital watch
    Scene unit = 1 Earth radius (6371 km). Scene frame = Earth-centred
    inertial (TEME / of-date), mapped to three.js as  (x, z, -y)  so the
    celestial north pole is +Y.
@@ -12,9 +12,11 @@ const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const fmt = (n, d = 0) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const pad2 = (n) => String(n).padStart(2, '0');
+// Settings saved before the rename to Galacticio move over once.
+try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('asterio.')) { const n = 'galacticio.' + k.slice(8); if (localStorage.getItem(n) == null) localStorage.setItem(n, localStorage.getItem(k)); localStorage.removeItem(k); } } } catch { /* storage unavailable */ }
 const store = {
-  get(k, d) { try { const v = localStorage.getItem('asterio.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('asterio.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } if (/^(imagery|layer\.|class\.)/.test(k) && typeof prefsChanged === 'function') prefsChanged(); },
+  get(k, d) { try { const v = localStorage.getItem('galacticio.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('galacticio.' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } if (/^(imagery|layer\.|class\.)/.test(k) && typeof prefsChanged === 'function') prefsChanged(); },
 };
 let route = 'explore'; // current page: explore | about | data | terms | cookies
 const IN_SANDBOX = /claude\.ai$|claudeusercontent\.com$|anthropic/.test(location.hostname) || location.search.includes('nolive');
@@ -195,25 +197,38 @@ const LOGF = `#include <logdepthbuf_pars_fragment>\n`;
 const cam = {
   target: new THREE.Vector3(), follow: null, dist: 3.4, az: 0.6, el: 0.32, tilt: 0, userTilt: 0,
   vAz: 0, vEl: 0, fly: null, minDist: 1 + 30 / RE, maxDist: 1600, tiltK: 1,
+  pan: new THREE.Vector3(),  // orbit-centre offset from panning
+  zoomGoal: null,            // eased zoom target (wheel, keys)
+  blend: null,               // orientation hand-over when leaving free flight
 };
+// Free flight: the camera has its own position and orientation and can go anywhere. When it starts
+// while following an object, it moves relative to that object so the object stays close by.
+const free = {
+  on: false, anchor: null, pos: new THREE.Vector3(), q: new THREE.Quaternion(),
+  v: new THREE.Vector3(),    // velocity in camera axes, in units of the cruise speed
+  level: store.get('level', true), speed: 0, stick: { x: 0, y: 0 }, lift: 0,
+};
+const keys = new Set();
 // Keep the camera exactly where it is but orbit the Earth's centre again. Without this, dropping
 // a satellite target while zoomed in close snaps the orbit centre to the Earth and the camera ends
 // up inside the planet.
 function recenter() {
   const p = camera.position.clone(), a = angleFromDir(p); // rendered position (already kept outside the planet)
   cam.target.set(0, 0, 0); cam.dist = clamp(p.length(), cam.minDist, cam.maxDist); cam.az = a.az; cam.el = a.el;
-  cam.follow = null; cam.fly = null; cam.tiltK = 1;
+  cam.follow = null; cam.fly = null; cam.tiltK = 1; cam.pan.set(0, 0, 0); cam.zoomGoal = null;
 }
 function cancelFly() { if (!cam.fly) return; cam.fly = null; if (!cam.follow && cam.target.lengthSq() > 1e-12) recenter(); }
 // Animated version for "stop following": the camera stays put while its gaze swings back to Earth.
 function releaseFollow() {
   if (!cam.follow && !(cam.fly && cam.fly.follow) && cam.target.lengthSq() < 1e-12) { cam.follow = null; return; }
-  const p = camera.position.clone(); cam.follow = null;
+  const p = camera.position.clone(); cam.follow = null; cam.pan.set(0, 0, 0); cam.zoomGoal = null;
   cam.fly = { release: true, t: 0, dur: 0.9, fromT: cam.target.clone(), pos: p };
 }
 function camAltKm() { return (camera.position.length() - 1) * RE; }
 const _camOff = new THREE.Vector3();
+const _blendQ = new THREE.Quaternion();
 function applyCamera() {
+  if (free.on) { freeWorld(camera.position); camera.quaternion.copy(free.q); camera.up.set(0, 1, 0); skyCam.quaternion.copy(camera.quaternion); return; }
   const ce = Math.cos(cam.el);
   const off = _camOff.set(ce * Math.sin(cam.az), Math.sin(cam.el), ce * Math.cos(cam.az)).multiplyScalar(cam.dist);
   camera.position.copy(cam.target).add(off);
@@ -223,20 +238,56 @@ function applyCamera() {
   // auto-tilt toward the horizon when skimming low over the planet (target = Earth only)
   if (!cam.follow) {
     const alt = (cam.dist - 1) * RE;
-    const t = (smooth(2600, 180, alt) * 1.18 + cam.userTilt) * cam.tiltK;
+    // the automatic horizon tilt only makes sense while orbiting the Earth's centre, not after panning away
+    const t = (smooth(2600, 180, alt) * 1.18 * (1 - smooth(0, 0.03, cam.pan.length())) + cam.userTilt) * cam.tiltK;
     cam.tilt = clamp(t, 0, 1.35);
     if (cam.tilt > 0.001) camera.rotateX(cam.tilt);
   }
+  if (cam.blend) { const s = Math.min(cam.blend.t, 1), e = s * s * (3 - 2 * s); _blendQ.copy(camera.quaternion); camera.quaternion.slerpQuaternions(cam.blend.q0, _blendQ, e); }
   skyCam.quaternion.copy(camera.quaternion);
 }
 function zoomBy(f) {
-  cancelFly();
+  cancelFly(); cam.zoomGoal = null;
   if (cam.follow) { cam.dist = clamp(cam.dist * f, 0.0015, cam.maxDist); return; }
   const alt = Math.max(cam.dist - 1, 1e-4);
   cam.dist = clamp(1 + alt * f, cam.minDist, cam.maxDist);
 }
+// Wheel and key zoom: move a goal and let the camera ease toward it, so steps blend into one glide.
+function zoomSmooth(f) {
+  if (free.on) { free.v.z = clamp(free.v.z + (f < 1 ? -0.9 : 0.9), -6, 6); return; }
+  cancelFly();
+  const cur = cam.zoomGoal != null ? cam.zoomGoal : cam.dist;
+  cam.zoomGoal = cam.follow ? clamp(cur * f, 0.0015, cam.maxDist) : clamp(1 + Math.max(cur - 1, 1e-4) * f, cam.minDist, cam.maxDist);
+}
+function stepZoom(dt) {
+  const g = cam.zoomGoal; if (g == null || cam.fly) return;
+  const k = 1 - Math.exp(-dt * 11);
+  if (cam.follow) cam.dist = Math.exp(Math.log(cam.dist) + (Math.log(g) - Math.log(cam.dist)) * k);
+  else { const a = Math.log(Math.max(cam.dist - 1, 1e-5)), b = Math.log(Math.max(g - 1, 1e-5)); cam.dist = 1 + Math.exp(a + (b - a) * k); }
+  if (Math.abs(Math.log(cam.dist / g)) < 1e-4) { cam.dist = g; cam.zoomGoal = null; }
+}
+// Slide the orbit centre across the screen (middle-drag, Ctrl/⌘-drag, two-finger drag).
+const _pa = new THREE.Vector3(), _pb = new THREE.Vector3(), _pc = new THREE.Vector3();
+function panBy(dx, dy) {
+  cancelFly();
+  const d = cam.follow ? cam.dist : Math.max(cam.dist - 1, 0.002);
+  const s = 2 * d * Math.tan(camera.fov * DEG / 2) / innerHeight, ce = Math.cos(cam.el);
+  const back = _pa.set(ce * Math.sin(cam.az), Math.sin(cam.el), ce * Math.cos(cam.az));
+  const right = _pb.set(Math.cos(cam.az), 0, -Math.sin(cam.az)), up = _pc.crossVectors(back, right);
+  cam.pan.addScaledVector(right, -dx * s).addScaledVector(up, dy * s);
+  if (cam.pan.length() > cam.maxDist) cam.pan.setLength(cam.maxDist);
+}
+// Glide the orbit centre back to Earth (or the followed object) without moving the view angle.
+function resetPan(dur = 0.8) {
+  if (cam.pan.lengthSq() < 1e-12) return;
+  const follow = cam.follow; cam.pan.set(0, 0, 0); cam.follow = null; cam.zoomGoal = null;
+  cam.fly = { t: 0, dur, fromT: cam.target.clone(), fromD: cam.dist, fromAz: cam.az, fromEl: cam.el, toT: new THREE.Vector3(), follow, toD: cam.dist, toAz: cam.az, toEl: cam.el };
+}
 function flyTo({ target = null, follow = null, dist, az = cam.az, el = cam.el, dur = 1.6 }) {
+  if (free.on) exitFree();
+  cam.zoomGoal = null;
   if (!target && cam.target.lengthSq() > 1e-12) recenter(); // e.g. Reset while close to a satellite
+  cam.pan.set(0, 0, 0);
   cam.fly = { t: 0, dur, fromT: cam.target.clone(), fromD: cam.dist, fromAz: cam.az, fromEl: cam.el,
     toT: target ? target.clone() : new THREE.Vector3(), follow, toD: dist, toAz: az, toEl: el };
   if (!follow) cam.follow = null;
@@ -265,24 +316,131 @@ function goHome(dur = 1.8) {
   flyTo({ dist: innerWidth < 860 ? 4.6 : 3.4, az: a.az, el: 0.3, dur });
 }
 
-/* pointer handling: drag = orbit, wheel/pinch = zoom, right/shift-drag = tilt */
+/* ── free flight ─────────────────────────────────────────────── */
+const _fa = new THREE.Vector3(), _fb = new THREE.Vector3(), _fc = new THREE.Vector3(), _fd = new THREE.Vector3(), _fq = new THREE.Quaternion();
+const AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0), AZ = new THREE.Vector3(0, 0, 1);
+const MOON_R = 1737.4 / RE;
+function freeWorld(out) { out.copy(free.pos); if (free.anchor) out.add(free.anchor.pos()); return out; }
+// Cruise speed in Earth radii per second: proportional to the distance to the nearest surface (Earth,
+// Moon or the object being flown around), so the same keys work from orbit to deep space.
+function freeCruise(w) {
+  let near = Math.max(w.length() - 1, 2e-6);
+  near = Math.min(near, Math.max(w.distanceTo(moon.position) - MOON_R, 2e-6));
+  if (free.anchor) near = Math.min(near, Math.max(free.pos.length(), 2e-6));
+  return clamp(near * 0.7, 1e-6, 600);
+}
+// yaw about the local vertical when levelling (keeps the horizon flat), pitch and roll about the camera
+function freeTurn(yaw, pitch, roll) {
+  const q = free.q;
+  if (yaw) {
+    if (free.level) { freeWorld(_fa).normalize(); q.premultiply(_fq.setFromAxisAngle(_fa, yaw)); }
+    else q.multiply(_fq.setFromAxisAngle(AY, yaw));
+  }
+  if (pitch) {
+    q.multiply(_fq.setFromAxisAngle(AX, pitch));
+    if (free.level && Math.abs(_fb.set(0, 0, -1).applyQuaternion(q).dot(freeWorld(_fa).normalize())) > 0.996) q.multiply(_fq.setFromAxisAngle(AX, -pitch)); // no flipping over the top
+  }
+  if (roll) q.multiply(_fq.setFromAxisAngle(AZ, roll));
+  q.normalize();
+}
+function freeStrafe(dx, dy) { // drag with right button / Shift, or two fingers: slide sideways
+  const s = freeCruise(freeWorld(_fb)) * 2 / innerHeight;
+  free.pos.add(_fa.set(-dx * s, dy * s, 0).applyQuaternion(free.q));
+}
+// Roll the camera back toward the local horizon unless the user is rolling on purpose.
+function freeLevel(dt) {
+  const u = freeWorld(_fa).normalize(), f = _fb.set(0, 0, -1).applyQuaternion(free.q);
+  const want = _fc.copy(u).addScaledVector(f, -u.dot(f)); if (want.lengthSq() < 0.02) return; want.normalize();
+  const cur = u.set(0, 1, 0).applyQuaternion(free.q);
+  const ang = Math.atan2(_fd.crossVectors(cur, want).dot(f), cur.dot(want));
+  free.q.premultiply(_fq.setFromAxisAngle(f, ang * (1 - Math.exp(-dt * 2.5)))).normalize();
+}
+const held = (...c) => (c.some((x) => keys.has(x)) ? 1 : 0);
+function freeStep(dt) {
+  if (free.anchor && free.anchor.kind === 'sat' && !(sats && sats.recs[free.anchor.i] === free.anchor.rec)) { free.anchor = null; free.pos.copy(camera.position); } // catalogue changed under us
+  const yaw = held('ArrowLeft') - held('ArrowRight'), pitch = held('ArrowUp') - held('ArrowDown'), roll = held('KeyQ') - held('KeyE');
+  if (yaw || pitch) freeTurn(yaw * 1.1 * dt, pitch * 0.9 * dt, 0);
+  if (roll) freeTurn(0, 0, roll * 1.3 * dt);
+  const boost = held('ShiftLeft', 'ShiftRight') ? 5 : held('AltLeft', 'AltRight') ? 0.2 : 1;
+  const want = _fa.set(
+    clamp(held('KeyD') - held('KeyA') + free.stick.x, -1, 1),
+    clamp(held('Space', 'PageUp') - held('KeyC', 'PageDown') + free.lift, -1, 1),
+    clamp(held('KeyS') - held('KeyW') + free.stick.y, -1, 1)).multiplyScalar(boost);
+  const pushing = want.lengthSq() > 0;
+  free.v.lerp(want, 1 - Math.exp(-dt * (pushing ? 5 : 2.2))); // quick to start, glides to a stop
+  if (!pushing && free.v.lengthSq() < 1e-8) free.v.set(0, 0, 0);
+  const w = freeWorld(_fb), cruise = freeCruise(w);
+  free.speed = cruise * free.v.length() * RE; // km/s, for the readout
+  if (free.v.lengthSq()) free.pos.add(_fc.copy(free.v).applyQuaternion(free.q).multiplyScalar(cruise * dt));
+  // keep out of the Earth and the Moon, and inside the scene
+  freeWorld(w); let moved = false;
+  const minR = 1 + 20 / RE; if (w.length() < minR) { w.setLength(minR); moved = true; }
+  if (w.length() > cam.maxDist * 0.95) { w.setLength(cam.maxDist * 0.95); moved = true; }
+  const m = _fc.copy(w).sub(moon.position), mr = MOON_R + 15 / RE; if (m.length() < mr) { w.copy(moon.position).add(m.setLength(mr)); moved = true; }
+  if (moved) { free.pos.copy(w); if (free.anchor) free.pos.sub(free.anchor.pos()); }
+  if (free.level && !roll) freeLevel(dt);
+}
+function enterFree() {
+  if (free.on || route !== 'explore') return;
+  camera.updateMatrixWorld();
+  free.anchor = cam.follow || (cam.fly && cam.fly.follow) || null;
+  free.q.copy(camera.quaternion); free.pos.copy(camera.position); if (free.anchor) free.pos.sub(free.anchor.pos());
+  free.v.set(0, 0, 0); free.stick.x = free.stick.y = 0; free.lift = 0;
+  cam.fly = null; cam.zoomGoal = null; cam.blend = null; cam.follow = null; cam.vAz = cam.vEl = 0;
+  free.on = true; syncNavUi(); if (selected) renderDetail(false);
+  toast(IS_TOUCH ? 'Free flight: move with the stick, drag to look around, pinch to glide. Tap Fly again to orbit.'
+    : 'Free flight: W A S D to fly, drag or arrow keys to look, Shift for speed. F or Esc returns to orbit.', 6500);
+}
+// Back to orbiting: around the object we were flying near, otherwise around the Earth, from exactly
+// where the camera is now. The view direction eases over instead of snapping.
+function exitFree() {
+  if (!free.on) return;
+  const q0 = camera.quaternion.clone(), a = free.anchor;
+  free.on = false; free.anchor = null; free.v.set(0, 0, 0);
+  if (a && !(a.kind === 'sat' && !(sats && sats.recs[a.i] === a.rec))) {
+    const ap = a.pos(), off = camera.position.clone().sub(ap), ang = angleFromDir(off);
+    cam.follow = a; cam.target.copy(ap); cam.dist = clamp(off.length(), 0.0015, cam.maxDist); cam.az = ang.az; cam.el = ang.el;
+    cam.fly = null; cam.zoomGoal = null; cam.pan.set(0, 0, 0);
+  } else recenter();
+  cam.userTilt = 0; cam.vAz = cam.vEl = 0; cam.blend = { q0, t: 0, dur: 0.8 };
+  syncNavUi(); if (selected) renderDetail(false);
+}
+function toggleFree(on = !free.on) { if (on) enterFree(); else exitFree(); }
+
+/* pointer handling
+   orbit: drag = rotate, right/Shift-drag = tilt, middle/Ctrl-drag = pan, wheel/pinch = zoom, two fingers = pan
+   free flight: drag = look, right/Shift-drag = slide, wheel/pinch = glide forward/back */
 const pointers = new Map();
-let pinchD = 0, dragMoved = 0, lastTap = 0;
+let pinch = null, dragMoved = 0, lastTap = 0;
 const mouse = { x: -1, y: -1, over: false, moved: false };
+function twoFinger() { const [a, b] = [...pointers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
 canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey });
+  if (e.button === 1) e.preventDefault(); // no auto-scroll on middle-drag
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey, pan: e.button === 1 || e.ctrlKey || e.metaKey });
   dragMoved = 0; cam.vAz = cam.vEl = 0; canvas.classList.add('dragging');
-  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchD = Math.hypot(a.x - b.x, a.y - b.y); }
+  pinch = pointers.size >= 2 ? twoFinger() : null;
 });
 canvas.addEventListener('pointermove', (e) => {
   mouse.x = e.clientX; mouse.y = e.clientY; mouse.over = true; mouse.moved = true;
   const p = pointers.get(e.pointerId); if (!p) return;
   const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
   dragMoved += Math.abs(dx) + Math.abs(dy);
-  if (pointers.size === 2) {
-    const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchD > 0) zoomBy(Math.pow(pinchD / d, 1.6)); pinchD = d; return;
+  if (pointers.size >= 2) {
+    const g = twoFinger();
+    if (pinch && pinch.d > 0 && g.d > 0) {
+      const ratio = pinch.d / g.d, mx = g.x - pinch.x, my = g.y - pinch.y;
+      if (free.on) { free.v.z = clamp(free.v.z + (ratio - 1) * 7, -6, 6); freeStrafe(mx, my); }
+      else { zoomBy(Math.pow(ratio, 1.6)); panBy(mx, my); }
+    }
+    pinch = g; return;
   }
+  if (free.on) {
+    if (p.b === 2 || p.sh || p.pan) freeStrafe(dx, dy);
+    else { const k = camera.fov * DEG / innerHeight; freeTurn(dx * k, dy * k, 0); } // the sky follows the pointer
+    return;
+  }
+  if (p.pan) { panBy(dx, dy); return; }
   if (p.b === 2 || p.sh) { cam.userTilt = clamp(cam.userTilt + dy * 0.004, -1.2, 1.0); return; }
   cancelFly();
   const alt = cam.follow ? cam.dist : Math.max(cam.dist - 1, 0.002);
@@ -291,14 +449,29 @@ canvas.addEventListener('pointermove', (e) => {
   cam.az += cam.vAz; cam.el = clamp(cam.el + cam.vEl, -1.53, 1.53);
 });
 const endPtr = (e) => {
-  pointers.delete(e.pointerId); if (pointers.size < 2) pinchD = 0;
+  pointers.delete(e.pointerId); pinch = pointers.size >= 2 ? twoFinger() : null;
   if (!pointers.size) canvas.classList.remove('dragging');
   if (e.type === 'pointerup' && dragMoved < 6) onTap(e);
 };
 canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
 canvas.addEventListener('pointerleave', () => { mouse.over = false; if (!pointers.size) setHover(null); });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(clamp(e.deltaY, -120, 120) * 0.0022)); }, { passive: false });
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dy = clamp(e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1), -160, 160);
+  if (free.on) { free.v.z = clamp(free.v.z + dy * 0.006, -6, 6); return; }
+  zoomSmooth(Math.exp(dy * 0.0022));
+}, { passive: false });
+// Keyboard: arrows/WASD orbit (or fly), Q/E zoom (or roll); see the controls card for the full list.
+function orbitKeys(dt) {
+  const kx = held('ArrowRight', 'KeyD') - held('ArrowLeft', 'KeyA'), ky = held('ArrowUp', 'KeyW') - held('ArrowDown', 'KeyS'), kz = held('KeyQ') - held('KeyE');
+  if (kz) zoomBy(Math.exp(kz * 1.5 * dt));
+  if (!kx && !ky) return;
+  cancelFly();
+  const alt = cam.follow ? cam.dist : Math.max(cam.dist - 1, 0.002);
+  const r = 0.9 * clamp(alt / 1.2, 0.012, 1.0) * (cam.follow ? 1.6 : 1) * dt;
+  cam.az += kx * r; cam.el = clamp(cam.el + ky * r, -1.53, 1.53);
+}
 canvas.addEventListener('dblclick', () => { if (hover) select(hover, true); });
 
 /* ════════════════════════ SKY ════════════════════════ */
@@ -1129,11 +1302,13 @@ syncTimeUI();
 /* detail panel */
 let detailTick = 0;
 function select(o, fly, fromRoute) {
+  // free flight only rides along with the object it started next to while that object stays selected
+  if (free.on && free.anchor && !(o && sameObj(o, free.anchor))) { freeWorld(free.pos); free.anchor = null; }
   selected = o; satMat.uniforms.sel.value = o && o.kind === 'sat' ? o.i : -1;
   if (!fromRoute) syncUrlToSelection(o); else document.title = o ? objTitle(o) : TITLES.explore;
   buildOrbitPath();
   const el = $('detail');
-  if (!o) { el.hidden = true; $('side').style.visibility = ''; releaseFollow(); return; }
+  if (!o) { el.hidden = true; $('side').style.visibility = ''; if (!free.on) releaseFollow(); return; }
   el.hidden = false; if (innerWidth > 860) $('side').style.visibility = 'hidden';
   closeSheets();
   renderDetail(true);
@@ -1208,14 +1383,77 @@ qEl.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { qEl.value = ''; doSearch(); qEl.blur(); }
 });
 $('results').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) pickResult(+b.dataset.i); });
+const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyC', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'ShiftLeft', 'ShiftRight', 'AltLeft', 'AltRight']);
+const typing = (t) => t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 addEventListener('keydown', (e) => {
-  if (e.target === qEl) return;
-  if (e.key === 'Escape') { if (!$('mobileMenu').hidden) toggleMenu(false); else if (route === 'explore') select(null); }
-  if (route !== 'explore') return;
+  if (e.target === qEl || typing(e.target)) return;
+  if (e.key === 'Escape') {
+    if (!$('navHelp').hidden) toggleNavHelp(false); else if (!$('mobileMenu').hidden) toggleMenu(false);
+    else if (route === 'explore') { if (free.on) exitFree(); else select(null); }
+  }
+  if (route !== 'explore' || e.ctrlKey || e.metaKey) return;
+  if (MOVE_KEYS.has(e.code)) {
+    keys.add(e.code);
+    // arrows, Space and Page keys steer the camera here, not the page (or a focused button)
+    if (/^(Arrow|Space|Page)/.test(e.code) || (e.code.startsWith('Alt') && free.on)) { e.preventDefault(); if (e.target.tagName === 'BUTTON') e.target.blur(); }
+  }
+  if (e.repeat && !/^[+=_-]$/.test(e.key)) return;
   if (e.key === '/') { e.preventDefault(); qEl.focus(); }
-  if (e.key === '+' || e.key === '=') zoomBy(0.8); if (e.key === '-') zoomBy(1.25);
+  if (e.key === '+' || e.key === '=') zoomSmooth(0.72); if (e.key === '-' || e.key === '_') zoomSmooth(1.38);
   if (e.key === 'h' || e.key === 'H') { select(null); goHome(); }
+  if (e.key === 'f' || e.key === 'F') toggleFree();
+  if (e.key === 'c' || e.key === 'C') { if (!free.on) resetPan(); }
+  if ((e.key === 'l' || e.key === 'L') && free.on) { free.level = !free.level; store.set('level', free.level); toast(free.level ? 'Level horizon on' : 'Level horizon off: roll freely with Q and E', 2400); }
+  if (e.key === '?') toggleNavHelp();
 });
+addEventListener('keyup', (e) => { keys.delete(e.code); if (e.code === 'Space' && free.on && e.target.tagName === 'BUTTON') e.preventDefault(); });
+addEventListener('blur', () => keys.clear());
+document.addEventListener('visibilitychange', () => keys.clear());
+
+/* camera mode switch, controls card and the touch flight pad */
+function syncNavUi() {
+  $('modeOrbit').setAttribute('aria-pressed', String(!free.on)); $('modeFree').setAttribute('aria-pressed', String(free.on));
+  const dockFly = document.querySelector('#dock [data-open="fly"]'); if (dockFly) dockFly.setAttribute('aria-pressed', String(free.on));
+  document.body.classList.toggle('free-flight', free.on);
+  $('hint').innerHTML = free.on
+    ? '<span>W A S D to fly</span><span class="sep"></span><span>Drag to look</span><span class="sep"></span><span>Shift for speed</span>'
+    : '<span>Drag to rotate</span><span class="sep"></span><span>Scroll to zoom</span><span class="sep"></span><span>Middle-drag to pan</span>';
+}
+let navTick = { pad: null, pan: null };
+function syncNavTick() { // cheap per-frame checks, DOM touched only on change
+  const pad = free.on && IS_TOUCH && $('detail').hidden && !$('side').classList.contains('open') && !$('wx').classList.contains('open');
+  if (pad !== navTick.pad) { navTick.pad = pad; $('flyPad').hidden = !pad; if (!pad) { free.stick.x = free.stick.y = 0; free.lift = 0; } }
+  const pan = !free.on && cam.pan.lengthSq() > 1e-10;
+  if (pan !== navTick.pan) { navTick.pan = pan; $('recenterBtn').hidden = !pan; }
+}
+function toggleNavHelp(open = $('navHelp').hidden) {
+  $('navHelp').hidden = !open; $('navHelpBtn').setAttribute('aria-expanded', String(open));
+}
+$('modeOrbit').addEventListener('click', (e) => { e.currentTarget.blur(); exitFree(); });
+$('modeFree').addEventListener('click', (e) => { e.currentTarget.blur(); enterFree(); });
+$('recenterBtn').addEventListener('click', (e) => { e.currentTarget.blur(); resetPan(); });
+$('navHelpBtn').addEventListener('click', () => toggleNavHelp());
+$('navHelp').addEventListener('click', (e) => { if (e.target.closest('[data-close]')) toggleNavHelp(false); });
+document.addEventListener('pointerdown', (e) => { if (!$('navHelp').hidden && !e.target.closest('#navHelp,#navHelpBtn')) toggleNavHelp(false); });
+// virtual stick: drag the knob to move, the two buttons beside it rise and sink
+(() => {
+  const st = $('flyStick'), knob = st.querySelector('i'); let id = null;
+  const move = (e) => {
+    const r = st.getBoundingClientRect(), R = r.width * 0.36;
+    let x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2); const l = Math.hypot(x, y); if (l > R) { x *= R / l; y *= R / l; }
+    knob.style.transform = `translate(${x}px, ${y}px)`; free.stick.x = x / R; free.stick.y = y / R;
+  };
+  const end = () => { id = null; knob.style.transform = ''; free.stick.x = free.stick.y = 0; st.classList.remove('on'); };
+  st.addEventListener('pointerdown', (e) => { id = e.pointerId; try { st.setPointerCapture(id); } catch { /* synthetic pointer */ } st.classList.add('on'); move(e); });
+  st.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
+  st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
+  for (const [b, v] of [[$('flyUp'), 1], [$('flyDown'), -1]]) {
+    b.addEventListener('pointerdown', (e) => { try { b.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ } free.lift = v; b.classList.add('on'); });
+    const off = () => { free.lift = 0; b.classList.remove('on'); };
+    b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+})();
 
 /* sources dialog & mobile dock */
 const sourceState = {};
@@ -1223,7 +1461,7 @@ function renderSources() {
   const S = sourceState; const t = (x) => x ? new Date(x).toUTCString().slice(5, 22) + ' UTC' : '—';
   const badge = (st) => st === 'live' ? '<span class="badge live">Live</span>' : st === 'model' ? '<span class="badge model">Model</span>' : st === 'fail' ? '<span class="badge fail">Unavailable</span>' : st === 'deco' ? '<span class="badge model">Decorative</span>' : '<span class="badge snap">Snapshot</span>';
   const rows = [
-    ['Satellites & debris', 'CelesTrak GP element sets (active payloads + Fengyun-1C, Cosmos 2251, Iridium 33, Cosmos 1408 debris)', S.tle, `${S.tleN ? fmt(S.tleN) + ' objects. ' : ''}Elements ${S.tleWhen ? 'fetched ' + t(S.tleWhen) + (S.via ? ' via ' + (S.via === 'browser' ? 'your browser' : 'the Asterio server cache') : '') : 'from 15 Nov 2026, 02:20 UTC'}. Positions are propagated every frame in your browser with SGP4 (satellite.js), so motion is real time.`],
+    ['Satellites & debris', 'CelesTrak GP element sets (active payloads + Fengyun-1C, Cosmos 2251, Iridium 33, Cosmos 1408 debris)', S.tle, `${S.tleN ? fmt(S.tleN) + ' objects. ' : ''}Elements ${S.tleWhen ? 'fetched ' + t(S.tleWhen) + (S.via ? ' via ' + (S.via === 'browser' ? 'your browser' : 'the Galacticio server cache') : '') : 'from 15 Nov 2026, 02:20 UTC'}. Positions are propagated every frame in your browser with SGP4 (satellite.js), so motion is real time.`],
     ['Near-Earth asteroids', 'JPL SBDB Close-Approach API + JPL Horizons vectors', 'snap', `${neos.length} objects passing within 0.05 AU between 12 Nov 2026 and 15 Jan 2027. Ephemeris generated ${t(S.ephWhen)}.`],
     ['Moon & Sun', 'JPL Horizons geocentric vectors', 'snap', 'Valid through mid-January 2027; outside that window an analytic model takes over.'],
     ['Space weather', 'NOAA SWPC: planetary Kp, real-time solar wind, GOES X-ray flux, NOAA scales', S.wx, `${S.wxWhen ? 'Fetched ' + t(S.wxWhen) : ''}`],
@@ -1246,6 +1484,7 @@ document.querySelector('#side .tabs').addEventListener('click', (e) => { const b
 $('dock').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return; const k = b.dataset.open;
   if (k === 'home') { closeSheets(); select(null); goHome(); return; }
+  if (k === 'fly') { closeSheets(); toggleFree(); return; }
   const was = b.getAttribute('aria-pressed') === 'true'; closeSheets();
   if (!was) { select(null); const el = k === 'wx' ? $('wx') : $('side'); if (k !== 'wx') showTab(k); el.classList.add('open'); b.setAttribute('aria-pressed', 'true'); }
 });
@@ -1439,14 +1678,14 @@ let wx = null, started = false;
 // Otherwise (any static host) the browser asks both services directly; both send CORS headers.
 let SWPC = 'https://services.swpc.noaa.gov/', viaServer = false;
 async function tryLive() {
-  try { const h = await withTimeout(getJSON('api/health'), 4000); viaServer = !!(h && h.service === 'asterio'); } catch { viaServer = false; }
+  try { const h = await withTimeout(getJSON('api/health'), 4000); viaServer = !!(h && h.service === 'galacticio'); } catch { viaServer = false; }
   if (viaServer) SWPC = 'api/swpc/';
   const CT = viaServer ? 'api/tle?group=' : 'https://celestrak.org/NORAD/elements/gp.php?FORMAT=tle&GROUP=';
   if (!viaServer) {
     try { await withTimeout(getJSON(SWPC + 'products/summary/solar-wind-speed.json'), 8000); }
     catch { console.info('Live sources not reachable from this page; using the bundled snapshot.'); return; }
   }
-  sourceState.via = viaServer ? 'Asterio server cache' : 'browser';
+  sourceState.via = viaServer ? 'Galacticio server cache' : 'browser';
   try {
     const [act, ...deb] = await withTimeout(Promise.all(['active', 'fengyun-1c-debris', 'cosmos-2251-debris', 'iridium-33-debris', 'cosmos-1408-debris']
       .map((g, i) => getText(CT + g, viaServer ? 'default' : 'no-cache').catch((e) => (i === 0 ? Promise.reject(e) : '')))), viaServer ? 60000 : 25000);
@@ -1454,7 +1693,10 @@ async function tryLive() {
     deb.forEach((t) => parseRawTLE(t, true).forEach((r) => { if (!seen.has(r.norad)) { seen.add(r.norad); recs.push(r); } }));
     if (recs.length > 5000) {
       const selNorad = selected && selected.kind === 'sat' ? selected.rec.norad : null;
+      const anchorNorad = free.on && free.anchor && free.anchor.kind === 'sat' ? free.anchor.rec.norad : null;
+      if (anchorNorad != null) { freeWorld(free.pos); free.anchor = null; } // hold the flight position in world space across the swap
       setHover(null); sats.setRecords(recs);
+      if (anchorNorad != null && sats.byNorad.has(anchorNorad)) { free.anchor = satObj(sats.byNorad.get(anchorNorad)); free.pos.sub(free.anchor.pos()); }
       sourceState.tle = 'live'; sourceState.tleN = recs.length; sourceState.tleWhen = Date.now();
       // Re-point the selection (and the camera, if it is following or flying to it) at the new record
       // without moving the camera.
@@ -1502,18 +1744,18 @@ function updateStatus() {
 // Served by server.js the site uses real URLs (/about, /satellite/25544-iss-zarya). Opened as a plain
 // file or embedded elsewhere it falls back to #hash routes. Internal links are written as /paths in
 // both cases and intercepted here.
-const PATH_MODE = !!document.querySelector('meta[name="asterio:server"]');
+const PATH_MODE = !!document.querySelector('meta[name="galacticio:server"]');
 const DOCS = ['about', 'sources', 'satellites', 'terms', 'privacy', 'cookies', '404'];
 const TITLES = {
-  explore: 'Asterio: Live 3D Satellite Tracker & Space Weather Map', about: 'About Asterio: How the Live Satellite Map Works',
-  sources: 'Data Sources · Asterio Live Satellite Map', satellites: 'Satellite Catalogue · Asterio', terms: 'Terms of Use · Asterio',
-  privacy: 'Privacy Policy · Asterio', cookies: 'Cookie Policy · Asterio', 404: 'Page not found · Asterio',
+  explore: 'Galacticio: Live 3D Satellite Tracker & Space Weather Map', about: 'About Galacticio: How the Live Satellite Map Works',
+  sources: 'Data Sources · Galacticio Live Satellite Map', satellites: 'Satellite Catalogue · Galacticio', terms: 'Terms of Use · Galacticio',
+  privacy: 'Privacy Policy · Galacticio', cookies: 'Cookie Policy · Galacticio', 404: 'Page not found · Galacticio',
 };
 const slugify = (t) => String(t).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '');
 const satHref = (rec) => `/satellite/${rec.norad}${slugify(rec.name) ? '-' + slugify(rec.name) : ''}`;
 const neoHref = (d) => `/asteroid/${slugify(d.des)}`;
 function objHref(o) { return !o ? '/' : o.kind === 'sat' ? satHref(o.rec) : o.kind === 'neo' ? neoHref(o.d) : '/'; }
-function objTitle(o) { return o.kind === 'sat' ? `${o.rec.name} Live Position & Orbit Tracker · Asterio` : o.kind === 'neo' ? `Asteroid ${String(o.d.name || o.d.des).replace(/^\((.*)\)$/, '$1')} Close Approach · Asterio` : TITLES.explore; }
+function objTitle(o) { return o.kind === 'sat' ? `${o.rec.name} Live Position & Orbit Tracker · Galacticio` : o.kind === 'neo' ? `Asteroid ${String(o.d.name || o.d.des).replace(/^\((.*)\)$/, '$1')} Close Approach · Galacticio` : TITLES.explore; }
 function routeOf(p) {
   p = p.replace(/\/+$/, '') || '/'; let m;
   if (p === '/') return { name: 'explore' };
@@ -1623,7 +1865,7 @@ $('catJump').addEventListener('click', (e) => { const a = e.target.closest('a[da
 /* ════════════════════════ ACCOUNT & WATCHLIST ════════════════════════ */
 // Guests keep saved objects in this browser. Signed in (Google), they live on the server and follow
 // the user across devices; local items are merged in at sign-in.
-const GOOGLE_ID = (document.querySelector('meta[name="asterio:google-client-id"]') || {}).content || '';
+const GOOGLE_ID = (document.querySelector('meta[name="galacticio:google-client-id"]') || {}).content || '';
 const account = { user: null, watch: store.get('watchlist', []), ready: !PATH_MODE };
 async function api(path, opts = {}) {
   const r = await fetch(path, { credentials: 'same-origin', ...opts, headers: { ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
@@ -1871,10 +2113,15 @@ function frame(now) {
   gp.needsUpdate = true; neoGlow.geometry.setDrawRange(0, neos.length);
 
   // camera
-  if (!cam.fly && !pointers.size) { cam.az += cam.vAz; cam.el = clamp(cam.el + cam.vEl, -1.53, 1.53); cam.vAz *= 0.9; cam.vEl *= 0.9; }
-  stepFly(dt);
-  if (cam.follow) cam.target.copy(cam.follow.pos());
-  else if (!cam.fly) cam.target.set(0, 0, 0);
+  if (free.on) freeStep(dt);
+  else {
+    orbitKeys(dt);
+    if (!cam.fly && !pointers.size) { cam.az += cam.vAz; cam.el = clamp(cam.el + cam.vEl, -1.53, 1.53); cam.vAz *= 0.9; cam.vEl *= 0.9; }
+    stepZoom(dt); stepFly(dt);
+    if (!cam.fly) { if (cam.follow) cam.target.copy(cam.follow.pos()).add(cam.pan); else cam.target.copy(cam.pan); }
+  }
+  if (cam.blend && (cam.blend.t += dt / cam.blend.dur) >= 1) cam.blend = null;
+  syncNavTick();
   const wantOff = innerWidth <= 860 && !$('detail').hidden ? Math.round(innerHeight * 0.24) : 0;
   if (wantOff !== camera.userData.off) {
     camera.userData.off = wantOff;
@@ -1953,11 +2200,11 @@ function frame(now) {
       CLASSES.forEach((c, i) => { const el = $('ct' + i); if (el) el.innerHTML = `${fmt(counts[i])} <i>/ ${fmt(sats.counts[i])}</i>`; const row = el && el.parentElement; if (row) row.hidden = sats.counts[i] === 0; });
       const ne = $('ctneo'); if (ne) ne.innerHTML = `${neoCount} <i>/ ${neos.length}</i>`;
       const tot = counts.reduce((a, b) => a + b, 0) + (neoOn ? neoCount : 0);
-      $('focusN').textContent = `${fmt(tot)} objects drawn · alt ${fmt(alt)} km`;
+      $('focusN').textContent = `${fmt(tot)} objects drawn · alt ${fmt(alt)} km${free.on ? ` · ${free.speed >= 10 ? fmt(free.speed) : fmt(free.speed, 2)} km/s` : ''}`;
     }
   }
   if (now - histTick > 1500) { histTick = now; updateHist(); }
-  $('focusV').textContent = focusName(satMat.uniforms.camAlt.value);
+  $('focusV').textContent = (free.on ? 'Free flight · ' : '') + focusName(satMat.uniforms.camAlt.value);
 
   // hover picking (once per frame at most)
   if (mouse.moved && mouse.over && !pointers.size && !IS_TOUCH) { mouse.moved = false; setHover(pick(mouse.x, mouse.y)); }
@@ -1997,7 +2244,7 @@ function orientSat(i, p, ms, tumble) {
 }
 
 buildClassUI(); buildLayerUI();
-window.__asterio = { cam, flyTo, select, satObj: (i) => satObj(i), get sats() { return sats; }, neos, moonObj, setRate, jump, setHover, goHome, layersOn, moon, camera, belts, renderer, project: (v) => { const s = {}; return project(v, s) ? s : null; } };
+window.__galacticio = { cam, free, enterFree, exitFree, flyTo, select, satObj: (i) => satObj(i), get sats() { return sats; }, neos, moonObj, setRate, jump, setHover, goHome, layersOn, moon, camera, belts, renderer, project: (v) => { const s = {}; return project(v, s) ? s : null; } };
 renderSources();
 setRoute();
 loadAccount();

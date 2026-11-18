@@ -1,7 +1,7 @@
-<title>Asterio</title>
+<title>Galacticio</title>
 <meta charset="utf-8">
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Asterio is a live 3D map of the space around Earth: satellites, debris, near-Earth asteroids, the Moon, atmosphere layers, radiation belts and space weather.">
+<meta name="description" content="Galacticio is a live 3D map of the space around Earth: satellites, debris, near-Earth asteroids, the Moon, atmosphere layers, radiation belts and space weather.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
@@ -183,6 +183,51 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(-
 
 #hint{transition:opacity .6s;position:absolute;left:calc(var(--gut) + 98px);display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);pointer-events:none}
 #hint .sep{width:3px;height:3px;border-radius:50%;background:var(--faint)}
+#hint.vbot{bottom:calc(var(--foot-h) + var(--safe-b) + 70px)}
+/* camera mode: a segmented switch that reads like the time controls */
+#navMode{position:absolute;left:calc(var(--gut) + 98px);display:flex;align-items:center;gap:2px;height:46px;padding:0 6px;border-radius:999px}
+#navMode button{height:34px;border-radius:999px;padding:0 14px 0 11px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:7px}
+#navMode button:hover{color:var(--text);background:rgba(255,255,255,.05)}
+#navMode button[aria-pressed="true"]{background:var(--text);color:var(--bg)}
+#navMode .ic{width:34px;padding:0;justify-content:center}
+#navMode .ic[hidden]{display:none}
+#navMode svg,#navHelp svg,#flyPad svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#navMode .sep{width:1px;height:18px;background:var(--line-2);margin:0 4px}
+#navHelp{position:absolute;left:calc(var(--gut) + 98px);bottom:calc(var(--foot-h) + var(--safe-b) + 70px);width:min(540px, calc(100vw - var(--gut) - var(--gut-r) - 98px));padding:14px 18px 16px;z-index:5}
+#navHelp[hidden]{display:none}
+.nh-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:14px}
+.nh-head .ic{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.nh-head .ic:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.nh-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+#navHelp h3{display:flex;align-items:center;gap:8px;margin:0 0 9px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+#navHelp dl{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;margin:0;font-size:12.5px;align-items:center}
+#navHelp dt{display:flex;gap:3px;color:var(--muted);white-space:nowrap}
+#navHelp dd{margin:0}
+#navHelp kbd{font-family:var(--f-mono);font-size:10.5px;line-height:17px;min-width:19px;text-align:center;padding:0 5px;border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;color:var(--text);background:rgba(255,255,255,.04);letter-spacing:0;text-transform:none;font-weight:500}
+.nh-note{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--line);font-size:12px;line-height:1.5;color:var(--muted)}
+body.free-flight #gl{cursor:crosshair}
+body.free-flight #gl.dragging{cursor:grabbing}
+/* touch flight pad */
+#flyPad{position:absolute;left:calc(var(--gut) + 98px);bottom:calc(var(--foot-h) + var(--safe-b) + 70px);display:flex;align-items:flex-end;gap:10px;touch-action:none;-webkit-user-select:none;user-select:none}
+#flyPad[hidden]{display:none}
+#flyStick{position:relative;width:120px;height:120px;border-radius:50%;touch-action:none}
+#flyStick::before{content:"";position:absolute;inset:23%;border-radius:50%;border:1px dashed var(--line-2)}
+#flyStick i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(233,238,246,.12);border:1px solid rgba(233,238,246,.32);box-shadow:0 4px 14px rgba(0,0,0,.45);transition:transform .18s ease-out}
+#flyStick.on i{transition:none;background:var(--accent-soft);border-color:var(--accent)}
+#flyPad .ud{display:flex;flex-direction:column;gap:8px}
+#flyPad .ud button{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text);touch-action:none}
+#flyPad .ud button.on{background:var(--accent-soft);border-color:var(--accent)}
+#flyPad .ud svg{width:18px;height:18px;stroke-width:1.8}
+@media (pointer:coarse){body.free-flight #hint{display:none}}
+@media (min-width:861px) and (max-width:1180px){
+  /* the time controls take the middle of the bottom row here, so the camera switch sits above it */
+  #hint{display:none}
+  #navMode.vbot{bottom:calc(var(--foot-h) + var(--safe-b) + 70px)}
+  #navHelp{bottom:calc(var(--foot-h) + var(--safe-b) + 126px)}
+  #flyPad{bottom:calc(var(--foot-h) + var(--safe-b) + 126px)}
+  #notice{bottom:calc(var(--foot-h) + var(--safe-b) + 126px)}
+}
+body:has(#navHelp:not([hidden])) #notice{visibility:hidden}
 #tileChip{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--nav-h) + var(--safe-t) + 14px);font-size:12.5px;pointer-events:none}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.18);border-top-color:var(--accent);animation:spin .9s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -356,7 +401,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 #boot .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .35s ease}
 #boot .txt{font-size:13px;color:var(--muted);min-height:20px}
 #boot .fatal{margin-top:16px;color:var(--crit);font-size:13.5px;line-height:1.5}
-#notice{position:fixed;left:var(--gut);bottom:calc(var(--foot-h) + var(--safe-b) + 14px);z-index:30;width:min(380px, calc(100% - 32px));padding:16px;display:flex;flex-direction:column;gap:12px;font-size:13.5px;color:var(--muted)}
+#notice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--foot-h) + var(--safe-b) + 70px);z-index:30;width:min(380px, calc(100% - 32px));padding:16px;display:flex;flex-direction:column;gap:12px;font-size:13.5px;color:var(--muted)}
 #notice b{color:var(--text);font-weight:600}
 #notice .row2{display:flex;gap:8px;justify-content:flex-end}
 #notice button,#notice a{height:34px;padding:0 14px;border-radius:999px;font-size:13px;display:inline-flex;align-items:center;text-decoration:none}
@@ -369,8 +414,15 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   .vfoot #dataTxt,.vfoot .dot{display:none}
 }
 @media (max-width:1180px){
-  #search{width:240px}
-  .links a{padding:7px 9px}
+  /* the longer wordmark needs the room: drop the clock and tighten the bar */
+  .nav{gap:20px}
+  #search{width:210px}
+  .links a{padding:7px 9px;white-space:nowrap}
+  .status .clock{display:none}
+}
+@media (max-width:980px){
+  #search{width:180px}
+  #dataPill{display:none}
 }
 @media (max-width:960px){
   .cols{grid-template-columns:1fr 1fr}
@@ -397,11 +449,15 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   #time{left:var(--gut);right:var(--gut-r);transform:none;bottom:calc(var(--safe-b) + 60px);height:44px;justify-content:space-between}
   #time .off{display:none}
   #time .rates button{padding:0 8px}
-  #dock{display:grid;grid-template-columns:repeat(4,1fr);position:absolute;left:var(--gut);right:var(--gut-r);bottom:calc(var(--safe-b) + 12px);height:40px;padding:4px;border-radius:999px}
+  #navMode,#navHelp{display:none!important}
+  #flyPad{left:var(--gut);bottom:calc(var(--safe-b) + 116px)}
+  body.free-flight #ladder{display:none}
+  #dock{display:grid;grid-template-columns:repeat(5,1fr);position:absolute;left:var(--gut);right:var(--gut-r);bottom:calc(var(--safe-b) + 12px);height:40px;padding:4px;border-radius:999px}
   #dock button{border-radius:999px;font-size:12.5px;color:var(--muted);font-weight:500}
   #dock button[aria-pressed="true"]{background:rgba(255,255,255,.09);color:var(--text)}
   #tileChip{top:calc(var(--nav-h) + var(--safe-t) + 60px)}
-  #notice{bottom:calc(var(--safe-b) + 112px)}
+  #notice{left:var(--gut);transform:none;bottom:calc(var(--safe-b) + 112px)}
+  body.free-flight #notice{bottom:auto;top:calc(var(--nav-h) + var(--safe-t) + 60px)}
   .site-foot .fgrid{grid-template-columns:1fr 1fr}
   .site-foot .fgrid > div:first-child{grid-column:1 / -1}
   .credits{grid-template-columns:1fr}
@@ -432,7 +488,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 </style>
 
 <header class="nav">
-  <a class="logo" href="/" aria-label="Asterio home"><img src="brand/logo.svg" alt="Asterio" width="124" height="17"></a>
+  <a class="logo" href="/" aria-label="Galacticio home"><img src="brand/logo.svg" alt="Galacticio" width="171" height="17"></a>
   <nav class="links" aria-label="Main">
     <a href="/" data-route="explore">Explore</a>
     <a href="/satellites" data-route="satellites">Satellites</a>
@@ -488,7 +544,54 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 
   <aside id="detail" class="card vtop" hidden aria-live="polite"></aside>
 
-  <div id="hint" class="vbot"><span>Drag to rotate</span><span class="sep"></span><span>Scroll to zoom</span><span class="sep"></span><span>Hover any dot</span></div>
+  <div id="hint" class="vbot"><span>Drag to rotate</span><span class="sep"></span><span>Scroll to zoom</span><span class="sep"></span><span>Middle-drag to pan</span></div>
+  <div id="navMode" class="card vbot" role="group" aria-label="Camera">
+    <button id="modeOrbit" aria-pressed="true" title="Orbit around Earth or the selected object"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><ellipse cx="8" cy="8" rx="6.6" ry="2.7" transform="rotate(-22 8 8)"/></svg>Orbit</button>
+    <button id="modeFree" aria-pressed="false" title="Fly anywhere (F)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l2.6 11.4L8 11.3l-2.6 1.9z"/><path d="M8 13.8v1"/></svg>Free flight</button>
+    <span class="sep" aria-hidden="true"></span>
+    <button id="recenterBtn" class="ic" hidden title="Re-center (C)" aria-label="Re-center the view"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/></svg></button>
+    <button id="navHelpBtn" class="ic" aria-expanded="false" aria-controls="navHelp" title="Camera controls (?)" aria-label="Camera controls"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8.5" rx="1.6"/><path d="M4 7h.01M6.5 7h.01M9 7h.01M11.5 7h.01M5 9.8h6"/></svg></button>
+  </div>
+  <div id="navHelp" class="card" hidden role="dialog" aria-label="Camera controls">
+    <div class="nh-head"><b>Camera controls</b><button class="ic" data-close aria-label="Close"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
+    <div class="nh-cols">
+      <section>
+        <h3>Orbit</h3>
+        <dl>
+          <dt>Drag</dt><dd>Rotate</dd>
+          <dt>Scroll</dt><dd>Zoom</dd>
+          <dt>Right-drag</dt><dd>Tilt toward the horizon</dd>
+          <dt>Middle-drag</dt><dd>Pan (or Ctrl/⌘-drag)</dd>
+          <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Rotate (arrows too)</dd>
+          <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Zoom out, in</dd>
+          <dt><kbd>C</kbd></dt><dd>Re-center after panning</dd>
+          <dt><kbd>H</kbd></dt><dd>Back to the start view</dd>
+        </dl>
+      </section>
+      <section>
+        <h3>Free flight <kbd>F</kbd></h3>
+        <dl>
+          <dt>Drag</dt><dd>Look around</dd>
+          <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Fly</dd>
+          <dt><kbd>Space</kbd><kbd>C</kbd></dt><dd>Rise, sink</dd>
+          <dt><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Turn</dd>
+          <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Roll</dd>
+          <dt><kbd>Shift</kbd><kbd>Alt</kbd></dt><dd>Faster, slower</dd>
+          <dt>Scroll</dt><dd>Glide forward, back</dd>
+          <dt><kbd>L</kbd></dt><dd>Level horizon on, off</dd>
+          <dt><kbd>Esc</kbd></dt><dd>Back to orbit</dd>
+        </dl>
+      </section>
+    </div>
+    <p class="nh-note">Flight speed follows your distance to the nearest surface, so the same keys work in low orbit and out by the Moon. Start free flight while following a satellite to fly around it as it moves.</p>
+  </div>
+  <div id="flyPad" hidden>
+    <div id="flyStick" class="card" role="img" aria-label="Flight stick: drag to move"><i></i></div>
+    <div class="ud">
+      <button id="flyUp" class="card" aria-label="Rise"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10l4.5-4.5 4.5 4.5"/></svg></button>
+      <button id="flyDown" class="card" aria-label="Sink"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg></button>
+    </div>
+  </div>
 
   <div id="time" class="card vbot">
     <button class="live" id="liveBtn" title="Return to live time"><i></i>Live</button>
@@ -522,11 +625,12 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
     <button data-open="objects" aria-pressed="false">Objects</button>
     <button data-open="layers" aria-pressed="false">Layers</button>
     <button data-open="wx" aria-pressed="false">Weather</button>
+    <button data-open="fly" aria-pressed="false">Fly</button>
     <button data-open="home" aria-pressed="false">Reset</button>
   </nav>
 </div>
 <footer class="vfoot" id="vfoot">
-  <span>© 2026 Asterio</span><a href="/satellites">Satellites</a><a href="/about">About</a><a href="/sources">Data sources</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a>
+  <span>© 2026 Galacticio</span><a href="/satellites">Satellites</a><a href="/about">About</a><a href="/sources">Data sources</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a>
   <span class="spacer"></span><span id="dataTxt">Orbital data from CelesTrak, NASA/JPL and NOAA</span><span class="dot"></span><a class="credit" href="https://malikweb.eu" rel="author" target="_blank">Made by Nikolas Malík</a>
 </footer>
 
@@ -535,9 +639,9 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero hero-grid">
       <div>
-        <div class="eyebrow">About Asterio</div>
+        <div class="eyebrow">About Galacticio</div>
         <h1>A live map of the space around Earth</h1>
-        <p>Asterio shows every tracked satellite and debris fragment, the Moon, asteroids passing nearby, and the layers of air and radiation they move through. Everything is drawn to scale and moves in real time in your browser.</p>
+        <p>Galacticio shows every tracked satellite and debris fragment, the Moon, asteroids passing nearby, and the layers of air and radiation they move through. Everything is drawn to scale and moves in real time in your browser.</p>
         <div class="cta"><a class="btn primary" href="/">Open the 3D view</a><a class="btn" href="/satellites">Browse the catalogue</a></div>
       </div>
       <aside class="now" aria-label="Current numbers">
@@ -575,21 +679,21 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 
     <section class="sect">
       <h2>Live, snapshot or model</h2>
-      <p class="lede">Satellite motion is always computed live. The orbital data itself was downloaded on 15 November 2026 at 02:20 UTC. Element sets stay accurate to a few kilometres for several days, then drift, so the Asterio server refreshes the catalogue from CelesTrak every two hours and space weather from NOAA every five minutes. If those sources cannot be reached, Asterio falls back to a bundled snapshot and says so in the status pill. The Data sources page lists the state of every layer.</p>
+      <p class="lede">Satellite motion is always computed live. The orbital data itself was downloaded on 15 November 2026 at 02:20 UTC. Element sets stay accurate to a few kilometres for several days, then drift, so the Galacticio server refreshes the catalogue from CelesTrak every two hours and space weather from NOAA every five minutes. If those sources cannot be reached, Galacticio falls back to a bundled snapshot and says so in the status pill. The Data sources page lists the state of every layer.</p>
     </section>
 
     <section class="sect" id="faq">
       <h2>Frequently asked questions</h2>
-      <p class="lede">Short answers, with the numbers Asterio sees right now.</p>
+      <p class="lede">Short answers, with the numbers Galacticio sees right now.</p>
       <div class="faqs">
-        <details class="faq"><summary>How many satellites are orbiting Earth right now?</summary><div>Asterio currently tracks <span data-stat="total">18,534</span> objects from the public CelesTrak catalogue. <span data-stat="payloads">15,853</span> are satellites, <span data-stat="starlink">10,608</span> of them Starlink, and <span data-stat="debris">2,681</span> are catalogued debris fragments. <span data-stat="leo">17,728</span> objects are in low Earth orbit, below 2,000 km.</div></details>
+        <details class="faq"><summary>How many satellites are orbiting Earth right now?</summary><div>Galacticio currently tracks <span data-stat="total">18,534</span> objects from the public CelesTrak catalogue. <span data-stat="payloads">15,853</span> are satellites, <span data-stat="starlink">10,608</span> of them Starlink, and <span data-stat="debris">2,681</span> are catalogued debris fragments. <span data-stat="leo">17,728</span> objects are in low Earth orbit, below 2,000 km.</div></details>
         <details class="faq"><summary>Where is the International Space Station now?</summary><div>The ISS flies about <span data-stat="issAlt">426</span> km above Earth and circles the planet every <span data-stat="issPeriod">92.9</span> minutes at about 7.66 km/s, so it moves roughly 460 km every minute. Its live position is on the <a href="/satellite/25544-iss-zarya">ISS page</a>.</div></details>
         <details class="faq"><summary>How accurate are the positions?</summary><div>Positions are computed with the SGP4 model from published two-line element sets. They are typically within about 1 km when the elements are fresh and drift by a few kilometres per day after that. Good enough to see where things are, not for navigation or collision avoidance.</div></details>
-        <details class="faq"><summary>Which asteroid comes closest to Earth in this window?</summary><div><span data-stat="closestName">2026 VU15</span> passes at <span data-stat="closestLd">0.19</span> lunar distances on <span data-stat="closestDate">12 November 2026</span>. Asterio shows all <span data-stat="neos">41</span> known asteroids passing within 7.5 million km between 12 November 2026 and 15 January 2027.</div></details>
+        <details class="faq"><summary>Which asteroid comes closest to Earth in this window?</summary><div><span data-stat="closestName">2026 VU15</span> passes at <span data-stat="closestLd">0.19</span> lunar distances on <span data-stat="closestDate">12 November 2026</span>. Galacticio shows all <span data-stat="neos">41</span> known asteroids passing within 7.5 million km between 12 November 2026 and 15 January 2027.</div></details>
         <details class="faq"><summary>Where does space begin?</summary><div>By the most common convention, at the Kármán line, 100 km above sea level. The ISS and most satellites orbit in the thermosphere, between about 85 and 600 km, where the air is thin enough for orbits to last years.</div></details>
-        <details class="faq"><summary>What is geostationary orbit?</summary><div>A circular orbit 35,786 km above the equator. A satellite there takes exactly one sidereal day to go around, so it stays over the same spot on Earth. Asterio tracks <span data-stat="geo">537</span> objects in or near that belt, mostly communications and weather satellites.</div></details>
+        <details class="faq"><summary>What is geostationary orbit?</summary><div>A circular orbit 35,786 km above the equator. A satellite there takes exactly one sidereal day to go around, so it stays over the same spot on Earth. Galacticio tracks <span data-stat="geo">537</span> objects in or near that belt, mostly communications and weather satellites.</div></details>
         <details class="faq"><summary>What are the Van Allen belts?</summary><div>Two zones of charged particles trapped by Earth's magnetic field: an inner belt of energetic protons peaking near 3,000 km and an outer belt of electrons from about 13,000 to 60,000 km. The outer belt swells and drains with geomagnetic storms.</div></details>
-        <details class="faq"><summary>Is Asterio free? Do I need an account?</summary><div>Asterio is free and needs no account. You can optionally sign in with Google to keep a watchlist of saved satellites and asteroids across devices.</div></details>
+        <details class="faq"><summary>Is Galacticio free? Do I need an account?</summary><div>Galacticio is free and needs no account. You can optionally sign in with Google to keep a watchlist of saved satellites and asteroids across devices.</div></details>
       </div>
     </section>
 
@@ -616,7 +720,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero">
       <div class="eyebrow">Satellite catalogue</div>
-      <h1>Every satellite Asterio tracks</h1>
+      <h1>Every satellite Galacticio tracks</h1>
       <p>Open any satellite or asteroid to see where it is right now, its orbit and its path in 3D. The catalogue comes from CelesTrak and refreshes every two hours. Updated <span data-stat="updated">15 November 2026, 02:20 UTC</span>.</p>
     </section>
     <nav class="cat-jump" id="catJump" aria-label="Jump to a group"></nav>
@@ -643,30 +747,30 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Terms of Use</h1><p class="updated">Last updated 15 November 2026</p></section>
     <article class="prose">
-      <p>These terms apply when you use Asterio, the website and 3D viewer that shows objects in orbit around Earth, created and run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>). By using Asterio you agree to them. If you do not agree, please do not use the site.</p>
-      <h2>1. What Asterio is</h2>
-      <p>Asterio is a free educational visualisation. It downloads publicly available orbital, astronomical and space-weather data and draws it in your browser. You can use it without an account.</p>
+      <p>These terms apply when you use Galacticio, the website and 3D viewer that shows objects in orbit around Earth, created and run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>). By using Galacticio you agree to them. If you do not agree, please do not use the site.</p>
+      <h2>1. What Galacticio is</h2>
+      <p>Galacticio is a free educational visualisation. It downloads publicly available orbital, astronomical and space-weather data and draws it in your browser. You can use it without an account.</p>
       <h2>2. For information only</h2>
-      <p>Positions shown in Asterio are estimates. Satellite positions can be off by several kilometres, and more as the underlying data ages. Do not use Asterio for navigation, collision avoidance, launch or spacecraft operations, radio scheduling, or any decision where safety, property or money depends on precise positions. Use the original data providers for those purposes.</p>
+      <p>Positions shown in Galacticio are estimates. Satellite positions can be off by several kilometres, and more as the underlying data ages. Do not use Galacticio for navigation, collision avoidance, launch or spacecraft operations, radio scheduling, or any decision where safety, property or money depends on precise positions. Use the original data providers for those purposes.</p>
       <h2>3. Optional accounts</h2>
       <p>You can sign in with your Google account to save a watchlist and your view settings. Signing in is optional. You can delete your account data at any time from the account menu, which removes it from our server. We may suspend accounts that abuse the service. The <a href="/privacy">Privacy Policy</a> explains what we store.</p>
       <h2>4. Third-party data</h2>
-      <p>The data belongs to, or is published by, the organisations credited on the <a href="/sources">Data sources</a> page, including CelesTrak, NASA, NOAA and Natural Earth. Their own terms and credit requirements continue to apply. Asterio is not affiliated with or endorsed by any of them.</p>
+      <p>The data belongs to, or is published by, the organisations credited on the <a href="/sources">Data sources</a> page, including CelesTrak, NASA, NOAA and Natural Earth. Their own terms and credit requirements continue to apply. Galacticio is not affiliated with or endorsed by any of them.</p>
       <h2>5. Acceptable use</h2>
       <ul>
-        <li>Do not send automated requests at a rate that degrades the service. Asterio limits requests per visitor and may block clients that ignore those limits.</li>
-        <li>Do not use the Asterio API from other websites or apps without permission. It is meant for this site.</li>
+        <li>Do not send automated requests at a rate that degrades the service. Galacticio limits requests per visitor and may block clients that ignore those limits.</li>
+        <li>Do not use the Galacticio API from other websites or apps without permission. It is meant for this site.</li>
         <li>Do not attempt to disrupt the site, access other people's accounts, or get around its security.</li>
         <li>Do not present screenshots or recordings in a way that suggests they show official or exact positions.</li>
       </ul>
       <h2>6. No warranty</h2>
-      <p>Asterio is provided as is and as available, without warranties of any kind, express or implied, including accuracy, availability, fitness for a particular purpose and non-infringement. Data may be delayed, incomplete or wrong.</p>
+      <p>Galacticio is provided as is and as available, without warranties of any kind, express or implied, including accuracy, availability, fitness for a particular purpose and non-infringement. Data may be delayed, incomplete or wrong.</p>
       <h2>7. Limitation of liability</h2>
-      <p>To the fullest extent the law allows, the operator of Asterio is not liable for any indirect, incidental or consequential loss, or for any loss arising from reliance on the information shown. Nothing in these terms limits rights you have as a consumer that cannot be limited by law.</p>
+      <p>To the fullest extent the law allows, the operator of Galacticio is not liable for any indirect, incidental or consequential loss, or for any loss arising from reliance on the information shown. Nothing in these terms limits rights you have as a consumer that cannot be limited by law.</p>
       <h2>8. Open-source components</h2>
-      <p>Asterio uses open-source software including three.js and satellite.js under the MIT licence, and the Geist typeface under the SIL Open Font License. Those licences govern those components.</p>
+      <p>Galacticio uses open-source software including three.js and satellite.js under the MIT licence, and the Geist typeface under the SIL Open Font License. Those licences govern those components.</p>
       <h2>9. Changes</h2>
-      <p>These terms may change as the site changes. The date at the top shows the latest version. Continuing to use Asterio after a change means you accept the updated terms.</p>
+      <p>These terms may change as the site changes. The date at the top shows the latest version. Continuing to use Galacticio after a change means you accept the updated terms.</p>
       <h2>10. Contact</h2>
       <p>Questions about these terms can be sent to Nikolas Malík through <a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>.</p>
     </article>
@@ -679,7 +783,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Privacy Policy</h1><p class="updated">Last updated 15 November 2026</p></section>
     <article class="prose">
-      <p>Asterio is run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>), who is responsible for the personal data described here. You can use Asterio without giving us any personal data. This policy explains what happens if you sign in, and what every visit involves.</p>
+      <p>Galacticio is run by Nikolas Malík (<a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>), who is responsible for the personal data described here. You can use Galacticio without giving us any personal data. This policy explains what happens if you sign in, and what every visit involves.</p>
       <h2>If you just browse</h2>
       <ul>
         <li>We do not use analytics, advertising or tracking of any kind.</li>
@@ -697,7 +801,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
       <h2>How long we keep it</h2>
       <p>Until you delete it. Choose <b>Delete my data</b> in the account menu and your account record is removed from our server immediately. Accounts unused for 24 months are deleted.</p>
       <h2>Where it is stored</h2>
-      <p>On the server that runs Asterio. Sign-in is provided by Google Ireland Limited under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</p>
+      <p>On the server that runs Galacticio. Sign-in is provided by Google Ireland Limited under <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</p>
       <h2>Your rights</h2>
       <p>You can ask to see, correct, export or delete your data, and you can object to how it is used. Most of this you can do yourself from the account menu; for anything else, contact Nikolas Malík through <a href="https://malikweb.eu" target="_blank" rel="author">malikweb.eu</a>. You also have the right to complain to your data protection authority.</p>
       <h2>Changes</h2>
@@ -712,19 +816,19 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
   <div class="wrap">
     <section class="doc-hero"><div class="eyebrow">Legal</div><h1>Cookie Policy</h1><p class="updated">Last updated 15 November 2026</p></section>
     <article class="prose">
-      <p><strong>Asterio uses no tracking, analytics or advertising cookies.</strong> It sets one cookie, and only if you sign in.</p>
+      <p><strong>Galacticio uses no tracking, analytics or advertising cookies.</strong> It sets one cookie, and only if you sign in.</p>
       <h2>The one cookie</h2>
       <ul>
-        <li><code>asterio_session</code> keeps you signed in. It is set when you sign in with Google, lasts 30 days, cannot be read by scripts, and is removed when you sign out. It is strictly necessary for the sign-in you asked for, so it does not need separate consent.</li>
+        <li><code>galacticio_session</code> keeps you signed in. It is set when you sign in with Google, lasts 30 days, cannot be read by scripts, and is removed when you sign out. It is strictly necessary for the sign-in you asked for, so it does not need separate consent.</li>
       </ul>
-      <h2>What Asterio stores in your browser</h2>
-      <p>To remember how you like the view, Asterio saves a few small settings in your browser's local storage. They are not cookies, never leave your device, and are not readable by other websites.</p>
+      <h2>What Galacticio stores in your browser</h2>
+      <p>To remember how you like the view, Galacticio saves a few small settings in your browser's local storage. They are not cookies, never leave your device, and are not readable by other websites.</p>
       <ul>
-        <li><code>asterio.imagery</code>, <code>asterio.layer.*</code>, <code>asterio.class.*</code> — your view settings</li>
-        <li><code>asterio.watchlist</code> — objects you saved while signed out</li>
-        <li><code>asterio.notice</code> — that you dismissed the storage notice</li>
+        <li><code>galacticio.imagery</code>, <code>galacticio.layer.*</code>, <code>galacticio.class.*</code> — your view settings</li>
+        <li><code>galacticio.watchlist</code> — objects you saved while signed out</li>
+        <li><code>galacticio.notice</code> — that you dismissed the storage notice</li>
       </ul>
-      <p>You can remove them at any time by clearing site data for Asterio in your browser settings. Asterio works the same without them; it just forgets your choices.</p>
+      <p>You can remove them at any time by clearing site data for Galacticio in your browser settings. Galacticio works the same without them; it just forgets your choices.</p>
       <h2>Requests to other services</h2>
       <p>Loading the page contacts a few services. Like any web request, these receive your IP address and basic browser information, under their own privacy policies:</p>
       <ul>
@@ -733,7 +837,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
         <li>Google Identity Services (<code>accounts.google.com</code>), only when you open the sign-in menu. Google may set its own cookies there, under <a href="https://policies.google.com/technologies/cookies" target="_blank" rel="noopener">Google's cookie policy</a>.</li>
       </ul>
       <h2>Changes</h2>
-      <p>If Asterio ever starts using other cookies or analytics, this page will say so, and you will be asked first where the law requires it.</p>
+      <p>If Galacticio ever starts using other cookies or analytics, this page will say so, and you will be asked first where the law requires it.</p>
     </article>
     <footer class="site-foot"></footer>
   </div>
@@ -754,11 +858,11 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 
 <template id="footTpl">
   <div class="fgrid">
-    <div><a class="logo" href="/" aria-label="Asterio home"><img src="brand/logo.svg" alt="Asterio" width="117" height="16"></a><p style="margin:10px 0 0;max-width:40ch">A live 3D map of satellites, debris, asteroids and the layers around Earth.</p><p class="made">Designed and built by <a href="https://malikweb.eu" rel="author" target="_blank">Nikolas Malík</a></p></div>
+    <div><a class="logo" href="/" aria-label="Galacticio home"><img src="brand/logo.svg" alt="Galacticio" width="161" height="16"></a><p style="margin:10px 0 0;max-width:40ch">A live 3D map of satellites, debris, asteroids and the layers around Earth.</p><p class="made">Designed and built by <a href="https://malikweb.eu" rel="author" target="_blank">Nikolas Malík</a></p></div>
     <div><h4>Explore</h4><a href="/">3D view</a><a href="/satellites">Satellite catalogue</a><a href="/about">About &amp; FAQ</a><a href="/sources">Data sources</a></div>
     <div><h4>Legal</h4><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div>
   </div>
-  <div class="fine"><span>© 2026 Asterio by <a href="https://malikweb.eu" rel="author" target="_blank">malikweb.eu</a>. Not affiliated with NASA, NOAA or CelesTrak.</span><span>Orbital data: CelesTrak · Ephemerides: NASA JPL · Space weather: NOAA SWPC · Imagery: NASA GIBS</span></div>
+  <div class="fine"><span>© 2026 Galacticio by <a href="https://malikweb.eu" rel="author" target="_blank">malikweb.eu</a>. Not affiliated with NASA, NOAA or CelesTrak.</span><span>Orbital data: CelesTrak · Ephemerides: NASA JPL · Space weather: NOAA SWPC · Imagery: NASA GIBS</span></div>
 </template>
 
 <div id="tip" hidden>
@@ -767,7 +871,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
 </div>
 <div id="toast" class="card" hidden></div>
 <div id="notice" class="card" hidden role="dialog" aria-label="Storage notice">
-  <div><b>No tracking here.</b> Asterio keeps your view settings in this browser, and sets a cookie only if you sign in.</div>
+  <div><b>No tracking here.</b> Galacticio keeps your view settings in this browser, and sets a cookie only if you sign in.</div>
   <div class="row2"><a href="/cookies">Read the policy</a><button class="ok" id="noticeOk">Got it</button></div>
 </div>
 
@@ -777,7 +881,7 @@ table.src td:first-child{font-weight:600;color:var(--text);width:20%}
       <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="#e9eef6" stroke-opacity=".12" stroke-width="1.2"/><g class="sat"><circle cx="32" cy="2" r="2.6" fill="#e9eef6"/></g></svg>
       <img src="brand/mark.svg" alt="">
     </div>
-    <img class="nm" src="brand/logo.svg" alt="Asterio" width="146" height="20">
+    <img class="nm" src="brand/logo.svg" alt="Galacticio" width="201" height="20">
     <div class="bar"><i id="bootBar"></i></div>
     <div class="txt" id="bootTxt">Starting the 3D engine</div>
     <div class="fatal" id="fatal" hidden></div>

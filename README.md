@@ -1,8 +1,23 @@
-# Asterio
+# Galacticio
 
 A live 3D map of the space around Earth: every tracked satellite and debris fragment, the Moon,
 near-Earth asteroids, the atmosphere layers, the Van Allen belts and current space weather.
 Everything is drawn to scale and moves in real time in the browser.
+
+## Moving around
+
+The 3D view has two camera modes, switched with the Orbit / Free flight control at the bottom left,
+the **F** key, or **Fly** in the phone dock. The keyboard button next to it lists every control.
+
+- **Orbit** (default) circles the Earth or the selected object. Drag to rotate, scroll or pinch to zoom
+  (zoom eases instead of jumping), right-drag to tilt, middle-drag, Ctrl/⌘-drag or two-finger drag to
+  pan, **C** to re-center after panning. WASD or the arrow keys rotate, Q/E zoom, H returns to the start view.
+- **Free flight** lets the camera go anywhere. Drag to look around, WASD to fly, Space/C to rise and sink,
+  arrows to turn, Q/E to roll, Shift/Alt for faster/slower, scroll to glide, L to keep the horizon level,
+  Esc to return to orbit from where you are. Speed follows the distance to the nearest surface (Earth,
+  Moon or the object you started next to), so the same keys work in low orbit and out by the Moon. Starting
+  free flight while following a satellite keeps you moving with it. On touch screens a stick and rise/sink
+  buttons appear.
 
 ## Run it
 
@@ -24,7 +39,7 @@ For a public deployment set at least:
 
 | Variable | Why |
 | --- | --- |
-| `SITE_URL` | Canonical links, sitemap, social cards and `llms.txt` use it. Example `https://asterio.example` |
+| `SITE_URL` | Canonical links, sitemap, social cards and `llms.txt` use it. Example `https://galacticio.example` |
 | `TRUST_PROXY` | Number of proxies in front of Node (usually `1`), so rate limits see real visitor IPs |
 | `GOOGLE_CLIENT_ID` | Turns on "Sign in with Google" (see below) |
 | `SESSION_SECRET` | 32+ random characters that sign session cookies |
