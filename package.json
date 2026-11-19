@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "LOG=1 node --watch server.js",
-    "test": "node test/auth-flow.test.mjs"
+    "test": "node test/auth-flow.test.mjs",
+    "update": "bash update.sh"
   },
   "engines": {
     "node": ">=18"

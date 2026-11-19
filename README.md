@@ -59,6 +59,38 @@ checks its RS256 signature against Google's published keys, the issuer, audience
 HttpOnly, SameSite=Lax session cookie signed with HMAC. Only the Google account ID, name, email, picture
 URL, saved objects and view settings are stored. Users can delete everything from the account menu.
 
+## Deploy with pm2
+
+On the server you need Node 18 or newer (20 or 22 LTS recommended), git and pm2 (`npm install -g pm2`).
+
+```
+git clone https://github.com/GeronimoCZE/Asterio.git galacticio && cd galacticio
+cp .env.example .env        # set SITE_URL, TRUST_PROXY, GOOGLE_CLIENT_ID, SESSION_SECRET
+npm test
+pm2 start ecosystem.config.cjs && pm2 save
+pm2 startup                 # prints one command to run so pm2 starts again after a reboot
+```
+
+`ecosystem.config.cjs` runs a single process in fork mode, because rate limits are counted in memory and
+accounts are one JSON file. Put nginx or Caddy in front for HTTPS, proxy to `127.0.0.1:4050`, and set
+`TRUST_PROXY=1`. Back up `.env` and `DATA_DIR` (default `.data/`); neither is in git.
+
+### Updating
+
+```
+./update.sh                 # or: npm run update
+```
+
+It refuses to run over local edits to tracked files, fast-forwards to `origin/main`, syntax-checks the
+code and runs `npm test`, then reloads the pm2 app and waits for `/api/health`. If the checks fail, the
+running version is left alone; if the new version doesn't come up healthy, it rolls back to the previous
+commit and restarts that. `.env` and the account data are never touched, and pending account writes are
+saved before each restart.
+
+Options: `BRANCH=name` follows another branch, `SKIP_TESTS=1` skips the test suite, `FORCE=1` restarts even
+when nothing changed, `PM2_APP=name` if you renamed the pm2 app. For automatic updates, add a cron line such
+as `0 4 * * * cd /srv/galacticio && ./update.sh >> $HOME/galacticio-update.log 2>&1`.
+
 ## What the server does
 
 ### Pages and SEO
@@ -126,6 +158,8 @@ claude.ai, where outside requests are blocked, it stays on the bundled snapshot 
 
 ```
 server.js          Node server: routing, pages, static files, API
+ecosystem.config.cjs  pm2 process file
+update.sh          pull, check, restart and verify (with rollback)
 lib/config.js      settings from the environment or .env
 lib/http.js        responses, CORS, CSRF and security headers
 lib/ratelimit.js   per-IP token buckets
