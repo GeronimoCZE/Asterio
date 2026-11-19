@@ -1,4 +1,4 @@
-// Asterio brand geometry. Cap height 60 units, stroke 8.
+// Galacticio brand geometry. Cap height 60 units, stroke 8.
 const f = n => +n.toFixed(2);
 export const C = { ink:'#e9eef6', ion:'#5aa9ff', glow:'#e6f2ff', sun:'#ffffff', space:'#05070d', space2:'#0a0e17', dark:'#0b1220' };
 
@@ -22,20 +22,46 @@ export function letterA({ x=0, t=9.9, ink=C.ink, arc='url(#asArc)', sun=C.sun, a
   return g + star + arcP + legs;
 }
 
-export function arcGrad(id='asArc', x0=12, x1=56, ends=C.ion, mid=C.glow) {
-  return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${x0}" y1="0" x2="${x1}" y2="0"><stop offset="0" stop-color="${ends}"/><stop offset=".5" stop-color="${mid}"/><stop offset="1" stop-color="${ends}"/></linearGradient>`;
+// Bounding-box units, so the same gradient serves every A wherever it sits.
+export function arcGrad(id='asArc', _x0, _x1, ends=C.ion, mid=C.glow) {
+  return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${ends}"/><stop offset=".5" stop-color="${mid}"/><stop offset="1" stop-color="${ends}"/></linearGradient>`;
 }
 
-// STERIO, positioned after the A.
-export function rest(ink = C.ink) {
-  const s = 8, X = { S:82, T:144, E:208, R:272, I:342, O:370 };
-  const st = `fill="none" stroke="${ink}" stroke-width="${s}"`;
-  const S = `<path ${st} d="M${X.S+50} 4H${X.S+17}A13 13 0 0 0 ${X.S+17} 30H${X.S+33}A13 13 0 0 1 ${X.S+33} 56H${X.S}"/>`;
-  const T = `<path fill="${ink}" d="M${X.T} 0h52v8H${X.T+30}v52h-8V8H${X.T}z"/>`;
-  const E = `<path fill="${ink}" d="M${X.E} 0h44v8H${X.E+8}v18h32v8H${X.E+8}v18h36v8H${X.E}z"/>`;
-  const R = `<path fill="${ink}" d="M${X.R} 0h8v60h-8z"/><path ${st} d="M${X.R+4} 4H${X.R+33}A13 13 0 0 1 ${X.R+33} 30H${X.R+4}"/><path fill="${ink}" d="M${X.R+25} 30h9.2L${X.R+50} 60h-9.2z"/>`;
-  const I = `<path fill="${ink}" d="M${X.I} 0h8v60h-8z"/>`;
-  const O = `<rect ${st} x="${X.O+4}" y="4" width="60" height="52" rx="26"/>`;
-  return S + T + E + R + I + O;
+// Glyphs other than A. Each takes its left edge x and returns [svg, width].
+const S8 = 8;
+const st = ink => `fill="none" stroke="${ink}" stroke-width="${S8}"`;
+// Round letters share the O's stadium: radius 26 on the stroke centreline.
+const roundC = (x, w, ink, bar) => {
+  const r = 26, cl = x + 30, cr = x + w - 30, a = Math.PI / 4;
+  const tx = cr + r * Math.cos(a), ty = 30 - r * Math.sin(a);
+  const top = `M${f(tx)} ${f(ty)}A${r} ${r} 0 0 0 ${f(cr)} 4H${f(cl)}A${r} ${r} 0 0 0 ${f(cl)} 56H${f(cr)}`;
+  const tail = bar ? `A${r} ${r} 0 0 0 ${f(x + w - 4)} 30H${f(x + w - 26)}` : `A${r} ${r} 0 0 0 ${f(tx)} ${f(60 - ty)}`;
+  return `<path ${st(ink)} stroke-linejoin="miter" d="${top}${tail}"/>`;
+};
+export const GLYPH = {
+  G: (x, ink) => [roundC(x, 68, ink, true), 68],
+  C: (x, ink) => [roundC(x, 64, ink, false), 56],
+  L: (x, ink) => [`<path fill="${ink}" d="M${x} 0h8v52h36v8H${x}z"/>`, 44],
+  T: (x, ink) => [`<path fill="${ink}" d="M${x} 0h52v8H${x+30}v52h-8V8H${x}z"/>`, 52],
+  I: (x, ink) => [`<path fill="${ink}" d="M${x} 0h8v60h-8z"/>`, 8],
+  O: (x, ink) => [`<rect ${st(ink)} x="${x+4}" y="4" width="60" height="52" rx="26"/>`, 68],
+};
+
+// GALACTICIO. Gaps are set by eye for each pair (units, cap height 60).
+// The first A carries the rising Sun; the second keeps the horizon only.
+export const WORD = 'GALACTICIO';
+const GAPS = [11, 6, 7, 10, 13, 16, 14, 14, 17];
+export function word({ ink = C.ink, arc = 'url(#asArc)', sun = C.sun, glow = null } = {}) {
+  let x = 0, out = '', n = 0;
+  for (let i = 0; i < WORD.length; i++) {
+    const ch = WORD[i];
+    if (ch === 'A') {
+      const first = n++ === 0;
+      out += letterA({ x, ink, arc, sun: first ? sun : 'none', glow: first ? glow : null, id: 'as' + i });
+      x += 68;
+    } else { const [g, w] = GLYPH[ch](x, ink); out += g; x += w; }
+    if (i < GAPS.length) x += GAPS[i];
+  }
+  return { svg: out, width: x };
 }
-export const WORD_W = 438, CAP = 60;
+export const WORD_W = word().width, CAP = 60;

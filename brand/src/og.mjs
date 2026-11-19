@@ -92,13 +92,14 @@ html,body{margin:0;background:#05070d;color:#e9eef6;font-family:Geist,sans-serif
 const pages = {
   default: { home: true },
   about:   { eb: 'About', h: 'A live map of the space around Earth', sub: 'Satellites, debris, near-Earth asteroids, the Moon, atmosphere layers and space weather in one 3D view.' },
-  sources: { eb: 'Data sources', h: 'Where every layer comes from', sub: 'CelesTrak orbits, NASA JPL ephemerides and NOAA space-weather feeds, credited layer by layer.' },
-  terms:   { eb: 'Legal', h: 'Terms of Use', sub: 'The rules for using Asterio and its data.' },
-  privacy: { eb: 'Legal', h: 'Privacy Policy', sub: 'What Asterio collects, why, and how long it is kept.' },
-  cookies: { eb: 'Legal', h: 'Cookie Policy', sub: 'Which cookies and local storage Asterio uses.' },
+  sources: { eb: 'Data sources', h: 'Where every layer comes from', sub: 'CelesTrak orbits, NASA JPL ephemerides, NOAA space weather and NASA GIBS imagery, credited layer by layer.' },
+  satellites: { eb: 'Satellite catalogue', h: 'Every tracked satellite, by type', sub: 'Space stations, GPS, geostationary and Earth-observation satellites, and passing asteroids.' },
+  terms:   { eb: 'Legal', h: 'Terms of Use', sub: 'The terms for using Galacticio, the free live 3D map of the space around Earth.' },
+  privacy: { eb: 'Legal', h: 'Privacy Policy', sub: 'What Galacticio stores when you sign in with Google, why, and for how long.' },
+  cookies: { eb: 'Legal', h: 'Cookie Policy', sub: 'No tracking or advertising cookies. One sign-in cookie, set only if you sign in.' },
 };
 const overlay = (pg) => pg.home
-  ? `<div class="o"><div class="eb"><i></i>Live 3D orbit map</div><img src="${LOGO}" style="width:560px;display:block;margin-top:30px"><div class="tag">A live map of the space around Earth.</div></div>`
+  ? `<div class="o"><div class="eb"><i></i>Live 3D orbit map</div><img src="${LOGO}" style="width:680px;display:block;margin-top:30px"><div class="tag">A live map of the space around Earth.</div></div>`
   : `<div class="o"><img src="${LOGO}" style="height:24px;display:block"><div class="eb" style="margin-top:58px">${pg.eb}</div><div class="h">${pg.h}</div><div class="sub">${pg.sub}</div></div>`;
 
 const only = process.argv[2];

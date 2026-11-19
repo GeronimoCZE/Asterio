@@ -1,6 +1,6 @@
 {
-  "name": "Asterio",
-  "short_name": "Asterio",
+  "name": "Galacticio",
+  "short_name": "Galacticio",
   "description": "A live 3D map of the space around Earth: satellites, debris, near-Earth asteroids, the Moon and space weather.",
   "start_url": "./",
   "display": "standalone",
