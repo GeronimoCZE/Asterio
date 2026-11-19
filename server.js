@@ -19,7 +19,7 @@ import { MIME, send, json, acceptsGzip, corsCheck, preflight, htmlSecurityHeader
 import { clientIp, take, headers as rlHeaders } from './lib/ratelimit.js';
 import { cache, cached, TLE_GROUPS, TLE_TTL, tleUrl, tleOk, SWPC_PATHS, SWPC_TTL } from './lib/upstream.js';
 import { resolveRoute, renderPage, sitemap, robots, llms } from './lib/seo.js';
-import { handleAuth, userCount } from './lib/auth.js';
+import { handleAuth, userCount, flushUsers } from './lib/auth.js';
 import { catalog } from './lib/catalog.js';
 
 const PUBLIC = config.publicDir;
@@ -167,4 +167,11 @@ server.listen(config.port, config.host, () => {
   // Warm the caches so the first visitor does not wait on CelesTrak.
   (async () => { for (const g of TLE_GROUPS) await cached('tle-' + g, tleUrl(g), MIME['.txt'], TLE_TTL, tleOk).catch(() => {}); })();
 });
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => server.close(() => process.exit(0)));
+// Graceful stop (pm2 sends SIGINT): finish writing accounts, stop taking requests, then exit.
+let stopping = false;
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, async () => {
+  if (stopping) return; stopping = true;
+  setTimeout(() => process.exit(0), 4000).unref(); // don't wait forever on open connections
+  await flushUsers();
+  server.close(() => process.exit(0)); server.closeIdleConnections?.();
+});
