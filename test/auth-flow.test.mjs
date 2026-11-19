@@ -10,7 +10,7 @@ const PORT = 4061, BASE = `http://127.0.0.1:${PORT}`, CLIENT = 'test-client.apps
 process.env.PORT = String(PORT); process.env.HOST = '127.0.0.1'; process.env.GOOGLE_CLIENT_ID = CLIENT;
 process.env.SESSION_SECRET = 'x'.repeat(48); process.env.ALLOWED_ORIGINS = 'https://friend.example';
 // Never touch the real user store: run against a throwaway data directory.
-const DATA = mkdtempSync(path.join(tmpdir(), 'asterio-test-')); process.env.DATA_DIR = DATA;
+const DATA = mkdtempSync(path.join(tmpdir(), 'galacticio-test-')); process.env.DATA_DIR = DATA;
 process.on('exit', () => rmSync(DATA, { recursive: true, force: true }));
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -50,7 +50,7 @@ assert.equal(r.status, 403); console.log('✓ refuses cross-origin sign-in');
 // 3. good token signs in and sets an HttpOnly cookie
 r = await post('/api/auth/google', { credential: token(good) }); j = await r.json();
 assert.equal(r.status, 200); assert.equal(j.user.name, 'Ada Test'); assert.equal(j.user.email, 'ada@example.com');
-const setCookie = r.headers.get('set-cookie'); assert.match(setCookie, /asterio_session=.+; Path=\/; HttpOnly; SameSite=Lax/);
+const setCookie = r.headers.get('set-cookie'); assert.match(setCookie, /galacticio_session=.+; Path=\/; HttpOnly; SameSite=Lax/);
 const cookie = setCookie.split(';')[0]; console.log('✓ signs in with a valid token, sets HttpOnly SameSite cookie');
 
 // 4. /api/me with and without the cookie, tampered cookie

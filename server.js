@@ -1,4 +1,4 @@
-// Asterio web server. No dependencies, Node 18+.
+// Galacticio web server. No dependencies, Node 18+.
 //
 // Pages      /  /about  /sources  /satellites  /terms  /privacy  /cookies
 //            /satellite/<norad>-<slug>   /asteroid/<designation>
@@ -49,7 +49,7 @@ async function dataApi(req, res, url, ip, cors) {
     if (limited(req, res, 'api', ip)) return;
     const ages = {}; for (const [k, e] of cache) ages[k] = { fetched: e.fetched ? new Date(e.fetched).toISOString() : null, error: e.error || null };
     const c = catalog();
-    return json(req, res, 200, { ok: true, service: 'asterio', time: new Date().toISOString(), objects: c.total, live: c.live, accounts: userCount(), google: !!config.googleClientId, cache: ages }, h);
+    return json(req, res, 200, { ok: true, service: 'galacticio', time: new Date().toISOString(), objects: c.total, live: c.live, accounts: userCount(), google: !!config.googleClientId, cache: ages }, h);
   }
   if (p === 'tle') {
     if (limited(req, res, 'tle', ip)) return;
@@ -119,7 +119,7 @@ async function handle(req, res) {
   if (isApi) {
     if (req.method === 'OPTIONS') return preflight(req, res, { publicData: !isAccount });
     const cors = corsCheck(req, { publicData: !isAccount });
-    if (!cors.ok) return json(req, res, 403, { error: 'This origin is not allowed to use the Asterio API.' }, { Vary: 'Origin' });
+    if (!cors.ok) return json(req, res, 403, { error: 'This origin is not allowed to use the Galacticio API.' }, { Vary: 'Origin' });
     if (isAccount) {
       const write = req.method !== 'GET' && req.method !== 'HEAD';
       if (limited(req, res, url.pathname === '/api/auth/google' ? 'auth' : write ? 'write' : 'api', ip)) return;
@@ -161,8 +161,8 @@ const server = http.createServer((req, res) => {
 server.headersTimeout = 15000; server.requestTimeout = 30000; server.keepAliveTimeout = 5000; server.maxHeadersCount = 64;
 
 server.listen(config.port, config.host, () => {
-  console.log(`Asterio running at http://localhost:${config.port}`);
-  if (!config.siteUrl) console.log('Tip: set SITE_URL (e.g. https://asterio.example) so canonical links and the sitemap use your public address.');
+  console.log(`Galacticio running at http://localhost:${config.port}`);
+  if (!config.siteUrl) console.log('Tip: set SITE_URL (e.g. https://galacticio.example) so canonical links and the sitemap use your public address.');
   if (!config.googleClientId) console.log('Google sign-in is off. Set GOOGLE_CLIENT_ID to turn it on.');
   // Warm the caches so the first visitor does not wait on CelesTrak.
   (async () => { for (const g of TLE_GROUPS) await cached('tle-' + g, tleUrl(g), MIME['.txt'], TLE_TTL, tleOk).catch(() => {}); })();
